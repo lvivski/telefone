@@ -1,0 +1,15 @@
+#! /usr/bin/env node
+// -*- js -*-
+'use strict'
+
+var express = require('express'),
+    http = require('http'),
+    Dialup = require('dialup')
+
+var app = express(),
+    server = http.createServer(app),
+    dialup = new Dialup({server: server})
+
+app.use(express.static(__dirname + '/../app'))
+
+server.listen(process.env.PORT || 8080)

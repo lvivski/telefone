@@ -1,0 +1,20 @@
+{
+	"name": "telefone",
+	"version": "0.0.1",
+	"author": "Yehor Lvivski <lvivski@gmail.com>",
+	"scripts": {
+		"start": "./bin/server",
+		"postinstall": "bower install",
+		"postupdate": "bower update"
+	},
+	"dependencies": {
+		"dialup": "*",
+		"express": "*",
+		"bower": "*"
+	},
+	"license": "MIT",
+	"engines": {
+		"node": "0.10.x"
+	},
+	"private": true
+}

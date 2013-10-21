@@ -1,0 +1,9 @@
+{
+	"name": "telefone",
+	"version": "0.0.1",
+	"dependencies": {
+		"dialup": "*",
+		"requirejs": "*"
+	},
+	"private": true
+}
