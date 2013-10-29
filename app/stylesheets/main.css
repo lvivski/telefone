@@ -10,9 +10,38 @@ input, li {
 
 video {
 	width: 250px;
+	vertical-align: bottom;
 }
 
 ul {
 	list-style: none;
 	padding-left: 0;
 }
+
+.player {
+	position: relative;
+	display: inline-block;
+}
+
+.controls {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	}
+	.controls button {
+		font-weight: bold;
+		font-size: 1.5em;
+		cursor: pointer;
+		}
+	.controls .off {
+		position: relative;
+		}
+		.controls .off:after {
+			content: "";
+			position: absolute;
+			left: 0;
+			right: 0;
+			top: 50%;
+			border-bottom: .15em solid #E61919;
+			-webkit-transform: skew(-15deg,-15deg);
+			}

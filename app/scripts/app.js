@@ -1,59 +1,4 @@
-require.config({
-	baseUrl: '/components',
-	paths: {
-		'subsequent': 'subsequent/subsequent',
-		'streamlet': 'streamlet/streamlet',
-		'davy': 'davy/davy',
-		'dialup': 'dialup/dialup'
-	}
-})
-
-function $(selector, context) {
-  var result = (context || document).querySelectorAll(selector)
-  return result.length > 1 ? result : result[0]
-}
-
-NodeList.prototype.forEach = [].forEach
-
-NodeList.prototype.filter = [].filter
-
-define('dnd', ['streamlet'], function (Stream) {
-	return function (element) {
-		var stream = new Stream
-
-		element.on('dragenter').listen(function (e) {
-			e.preventDefault()
-			e.target.className = 'over'
-		})
-
-		element.on('dragover').listen(function (e) {
-			e.preventDefault()
-		})
-
-		element.on('dragleave').listen(function (e) {
-			e.target.className = ''
-		})
-
-		element.on('drop').listen(function (e) {
-			e.stopPropagation()
-			e.preventDefault()
-			e.target.className = ''
-
-			var files = e.dataTransfer.files,
-			    f = files[0],
-			    reader = new FileReader()
-
-			reader.onload = function(e) {
-				stream.add(e.target.result)
-			}
-			reader.readAsArrayBuffer(f)
-		})
-
-		return stream
-	}
-})
-
-require(['dialup', 'dnd'], function (Dialup, dnd) {
+require(['dialup', 'drop', 'player'], function (Dialup, drop, Player) {
 	var dialup = new Dialup(location.origin.replace(/^https?/, 'ws'), 'room')
 
 	$('#chat').on('change')
@@ -67,22 +12,20 @@ require(['dialup', 'dnd'], function (Dialup, dnd) {
 		})
 
 	dialup.createStream(true, true).then(function (stream) {
-		var video = document.createElement('video')
-		video.autoplay = true
-		video.muted = true
-		video.src = URL.createObjectURL(stream)
-		$('#local').appendChild(video)
+		var player = new Player(stream, {
+			muted: true
+		})
+		$('#conference').appendChild(player)
 	});
 
 	dialup.onAdd.listen(function (message) {
-		var video = document.createElement('video')
-		video.id = 'remote' + message.id
-		video.autoplay = true
-		video.src = URL.createObjectURL(message.stream)
-		dnd(video).listen(function (data) {
+		var player = new Player(message.stream, {
+			id: 'remote' + message.id,
+		})
+		drop(player).listen(function (data) {
 			dialup.send(message.id, data)
 		})
-		$('#remote').appendChild(video)
+		$('#conference').appendChild(player)
 	})
 
 	dialup.onData.filter(function (message) {
@@ -103,7 +46,8 @@ require(['dialup', 'dnd'], function (Dialup, dnd) {
 		var video = $('#remote' + message.id)
 		if (video) {
 			URL.revokeObjectURL(video.src)
-			video.parentNode.removeChild(video)
+			var player = video.parentNode
+			player.parentNode.removeChild(player)
 		}
 	})
 })
