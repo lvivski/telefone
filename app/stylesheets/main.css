@@ -8,7 +8,9 @@ body {
 	font-size: 1.5em;
 	margin: 0;
 	display: flex;
-	flex-direction: column;
+	height: 100%;
+	flex-flow: column;
+	align-content: stretch;
 }
 
 input, li, button {
@@ -26,17 +28,18 @@ video {
 ul {
 	list-style: none;
 	padding-left: 0;
+	margin: 0;
 }
 
 #conference {
 	display: flex;
-	flex-direction: row;
+	flex-flow: row wrap;
 	background: -webkit-canvas(noise), #736F6E;
 }
 
 .player {
 	position: relative;
-	flex: 1 1 auto;
+	flex: 1 1 20%;
 	max-width: 50%;
 	box-sizing: border-box;
 }
@@ -46,6 +49,25 @@ ul {
 }
 #chat {
 	margin: 10px;
+}
+
+#conference, #chat {
+	flex: 0 0 auto;
+}
+#log {
+	flex: 1 1 auto;
+	overflow: scroll;
+
+	background:
+		linear-gradient(white 30%, rgba(255,255,255,0)),
+		linear-gradient(rgba(255,255,255,0), white 70%) 0 100%,
+
+		radial-gradient(farthest-side at 50% 0, rgba(0,0,0,.2), rgba(0,0,0,0)),
+		radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.2), rgba(0,0,0,0)) 0 100%;
+	background-repeat: no-repeat;
+	background-color: white;
+	background-size: 100% 40px, 100% 40px, 100% 14px, 100% 14px;
+	background-attachment: local, local, scroll, scroll;
 }
 
 .controls {
