@@ -1,5 +1,22 @@
-require(['dialup', 'drop', 'player'], function (Dialup, drop, Player) {
-	var dialup = new Dialup(location.origin.replace(/^https?/, 'ws'), 'room')
+require(['dialup', 'player', 'drop'], function (Dialup, Player, drop) {
+	var room
+	if (location.pathname === '/') {
+		room = Array.apply(null, Array(20)).map(function (chars) {
+				return function () {
+					return chars.charAt(Math.floor(Math.random() * chars.length))
+				}
+			}('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')).join('')
+
+		history.pushState(null, '', room)
+		window.on('popstate').listen(function (e) {
+			location = location
+		})
+	} else {
+		room = location.pathname.slice(1)
+	}
+
+	var dialup = new Dialup(location.origin.replace(/^https?/, 'ws'), room),
+	    alone = false
 
 	$('#chat').on('change')
 		.filter(function (e) { return e.target.value })
@@ -16,7 +33,16 @@ require(['dialup', 'drop', 'player'], function (Dialup, drop, Player) {
 			muted: true
 		})
 		$('#conference').appendChild(player)
-	});
+		setTimeout(function(){
+			alone && prompt('You are alone here, send this URL to your friends', location)
+		}, 0)
+	})
+
+	dialup.onPeers.listen(function (message) {
+		if (message.connections.length === 0) {
+			alone = true
+		}
+	})
 
 	dialup.onAdd.listen(function (message) {
 		var player = new Player(message.stream, {

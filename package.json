@@ -10,7 +10,9 @@
 	"dependencies": {
 		"dialup": "*",
 		"express": "*",
-		"bower": "*"
+		"bower": "*",
+		"redis": "*",
+		"hiredis": "*"
 	},
 	"license": "MIT",
 	"engines": {
