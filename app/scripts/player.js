@@ -1,15 +1,16 @@
 define(function () {
-	var ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300),
-	    imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height),
-	    pixels = imageData.data
-	for (var i = 0; i < pixels.length; i += 4) {
-		var color = Math.round(Math.random() * 255)
-		pixels[i] = pixels[i + 1] = pixels[i + 2] = color
-		pixels[i + 3] = 5
+	if (document.getCSSCanvasContext) {
+		var ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300),
+		    imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height),
+		    pixels = imageData.data
+		for (var i = 0; i < pixels.length; i += 4) {
+			var color = Math.round(Math.random() * 255)
+			pixels[i] = pixels[i + 1] = pixels[i + 2] = color
+			pixels[i + 3] = 5
+		}
+		ctx.putImageData(imageData, 0, 0)
 	}
-	ctx.putImageData(imageData, 0, 0)
-	
-	
+
 	function Player(stream, props) {
 		var player = document.createElement('div')
 		player.className = 'player'
