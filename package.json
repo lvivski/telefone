@@ -2,10 +2,11 @@
 	"name": "telefone",
 	"version": "0.0.1",
 	"author": "Yehor Lvivski <lvivski@gmail.com>",
+	"main": "server.js",
 	"scripts": {
-		"start": "./bin/server",
-		"postinstall": "bower install",
-		"postupdate": "bower update"
+		"start": "node server.js",
+		"postinstall": "HOME=./ bower install",
+		"postupdate": "HOME=./ bower update"
 	},
 	"dependencies": {
 		"dialup": "*",

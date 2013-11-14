@@ -9,10 +9,10 @@ var app = express(),
     dialup = new Dialup({server: server})
 
 app.use(express.compress())
-app.use(express.static('app'))
+app.use(express.static(process.env.OPENSHIFT_REPO_DIR + 'app'))
 
 app.get('*', function (req, res) {
-	res.sendfile('app/index.html')
+	res.sendfile(process.env.OPENSHIFT_REPO_DIR + 'app/index.html')
 })
 
-server.listen(process.env.PORT || 8080)
+server.listen(process.env.OPENSHIFT_NODEJS_PORT || process.env.PORT || 8080, process.env.OPENSHIFT_NODEJS_IP)

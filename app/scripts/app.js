@@ -15,7 +15,7 @@ require(['dialup', 'player', 'drop'], function (Dialup, Player, drop) {
 		room = location.pathname.slice(1)
 	}
 
-	var dialup = new Dialup(location.origin.replace(/^https?/, 'ws'), room),
+	var dialup = new Dialup(location.origin.replace(/^https?/, 'ws') + ':8000', room),
 	    alone = false
 
 	$('#chat').on('change')
