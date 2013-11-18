@@ -6,13 +6,16 @@ var express = require('express'),
 
 var app = express(),
     server = http.createServer(app),
-    dialup = new Dialup({server: server})
+    dialup = new Dialup({server: server}),
+    dir = process.env.OPENSHIFT_REPO_DIR || __dirname + '/',
+    port = process.env.OPENSHIFT_NODEJS_PORT || process.env.PORT || 8080,
+    host = process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0'
 
 app.use(express.compress())
-app.use(express.static(process.env.OPENSHIFT_REPO_DIR + 'app'))
+app.use(express.static(dir + 'app'))
 
 app.get('*', function (req, res) {
-	res.sendfile(process.env.OPENSHIFT_REPO_DIR + 'app/index.html')
+	res.sendfile(dir + 'app/index.html')
 })
 
-server.listen(process.env.OPENSHIFT_NODEJS_PORT || process.env.PORT || 8080, process.env.OPENSHIFT_NODEJS_IP)
+server.listen(port, host)

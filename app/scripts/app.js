@@ -59,7 +59,7 @@ require(['dialup', 'player', 'drop'], function (Dialup, Player, drop) {
 	}).listen(function (message) {
 		var entry = document.createElement('li')
 		entry.innerHTML = '<b>' + message.data + '</b>'
-		$('#log').appendChild(entry)
+		$('#log').insertBefore(entry, $('#log').firstChild)
 	})
 
 	dialup.onData.filter(function (message) {
