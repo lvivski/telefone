@@ -44,7 +44,10 @@ ul {
 	flex: 1 1 20%;
 	max-width: 50%;
 	box-sizing: border-box;
-}
+	}
+	.player:nth-child(n+6) {
+		max-width: 20%;
+	}
 
 .player, #log {
 	padding: 10px;
