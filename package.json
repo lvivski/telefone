@@ -11,9 +11,7 @@
 	"dependencies": {
 		"dialup": "*",
 		"express": "*",
-		"bower": "*",
-		"redis": "*",
-		"hiredis": "*"
+		"bower": "*"
 	},
 	"license": "MIT",
 	"engines": {
