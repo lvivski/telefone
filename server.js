@@ -7,9 +7,9 @@ var express = require('express'),
 var app = express(),
     server = http.createServer(app),
     dialup = new Dialup({server: server}),
-    dir = process.env.OPENSHIFT_REPO_DIR || __dirname + '/',
-    port = process.env.OPENSHIFT_NODEJS_PORT || process.env.PORT || 8080,
-    host = process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0'
+    dir = __dirname + '/',
+    port = process.env.PORT || 8080,
+    host = '0.0.0.0'
 
 app.use(express.compress())
 app.use(express.static(dir + 'app'))
