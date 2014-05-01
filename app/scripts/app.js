@@ -40,7 +40,7 @@ require(['dialup', 'player', 'drop'], function (Dialup, Player, drop) {
 
 	dialup.onAdd.listen(function (message) {
 		var player = new Player(message.stream, {
-			id: 'remote' + message.id,
+			id: 'remote' + message.id
 		})
 		drop(player).listen(function (data) {
 			dialup.send(message.id, data)
@@ -59,7 +59,10 @@ require(['dialup', 'player', 'drop'], function (Dialup, Player, drop) {
 	dialup.onData.filter(function (message) {
 		return typeof message.data !== 'string'
 	}).listen(function (message) {
-		console.log(URL.createObjectURL(new Blob([message.data])))
+		var entry = document.createElement('li'),
+			url = URL.createObjectURL(new Blob([message.data]))
+		entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
+		$('#log').insertBefore(entry, $('#log').firstChild)
 	})
 
 	dialup.onLeave.listen(function (message) {

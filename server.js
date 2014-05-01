@@ -9,7 +9,7 @@ var app = express(),
     dialup = new Dialup({server: server}),
     dir = __dirname + '/',
     port = process.env.PORT || 8080,
-    host = '0.0.0.0'
+    host = process.env.HOST || '0.0.0.0'
 
 app.use(express.compress())
 app.use(express.static(dir + 'app'))
