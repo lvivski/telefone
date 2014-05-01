@@ -1,6 +1,8 @@
 'use strict';
 
 var express = require('express'),
+	compress = require('compression')(),
+	st = require('serve-static'),
     http = require('http'),
     Dialup = require('dialup')
 
@@ -11,8 +13,8 @@ var app = express(),
     port = process.env.PORT || 8080,
     host = process.env.HOST || '0.0.0.0'
 
-app.use(express.compress())
-app.use(express.static(dir + 'app'))
+app.use(compress)
+app.use(st(dir + 'app'))
 
 app.get('*', function (req, res) {
 	res.sendfile(dir + 'app/index.html')
