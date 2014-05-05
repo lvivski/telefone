@@ -1,7 +1,13 @@
 require(['dialup', 'player', 'drop'], function (Dialup, Player, drop) {
 	var room
 	if (location.pathname === '/') {
-		history.pushState(null, '', fancyName())
+		room = Array.apply(null, Array(20)).map(function (chars) {
+				return function () {
+					return chars.charAt(Math.floor(Math.random() * chars.length))
+				}
+			}('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')).join('')
+
+		history.pushState(null, '', room)
 		window.on('popstate').listen(function (e) {
 			location = location
 		})
