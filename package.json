@@ -1,23 +1,23 @@
 {
-	"name": "telefone",
-	"version": "0.0.1",
-	"author": "Yehor Lvivski <lvivski@gmail.com>",
-	"main": "server.js",
-	"scripts": {
-		"start": "node server.js",
-		"postinstall": "HOME=./ bower install",
-		"postupdate": "HOME=./ bower update"
-	},
-	"dependencies": {
-		"dialup": "*",
-		"express": "*",
-		"compression": "*",
-		"serve-static": "*",
-		"bower": "*"
-	},
-	"license": "MIT",
-	"engines": {
-		"node": "0.10.x"
-	},
-	"private": true
+  "name": "telefone",
+  "version": "0.0.1",
+  "author": "Yehor Lvivski <lvivski@gmail.com>",
+  "main": "server.js",
+  "scripts": {
+    "prestart": "watchify app/scripts/src/app.js -o app/scripts/telefone.js -v &",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dialup": "*",
+    "streamlet": "*",
+    "express": "*",
+    "compression": "*",
+    "serve-static": "*",
+    "watchify": "*"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": "0.10.x"
+  },
+  "private": true
 }
