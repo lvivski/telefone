@@ -17,7 +17,7 @@ app.use(compress)
 app.use(st(dir + 'app'))
 
 app.get('*', function (req, res) {
-	res.sendFile(dir + 'app/index.html')
+	res.sendfile(dir + 'app/index.html')
 })
 
 server.listen(port, host)
