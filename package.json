@@ -4,7 +4,7 @@
   "author": "Yehor Lvivski <lvivski@gmail.com>",
   "main": "server.js",
   "scripts": {
-    "prestart": "watchify app/scripts/src/app.js -o app/scripts/telefone.js -v &",
+    "prestart": "browserify app/scripts/src/app.js -o app/scripts/telefone.js",
     "start": "node server.js"
   },
   "dependencies": {
@@ -13,7 +13,7 @@
     "express": "*",
     "compression": "*",
     "serve-static": "*",
-    "watchify": "*"
+    "browserify": "*"
   },
   "license": "MIT",
   "engines": {
