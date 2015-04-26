@@ -1,4 +1,5 @@
 var Dialup = require('dialup/client'),
+	Observable = require('streamlet'),
 	Player = require('./player'),
 	drop = require('./drop'),
 	$ = require('./bootstrap'),
@@ -12,7 +13,7 @@ if (location.pathname === '/') {
 		}('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')).join('')
 
 	history.pushState(null, '', room)
-	window.on('popstate').listen(function (e) {
+	Observable.fromEvent(window, 'popstate').listen(function (e) {
 		location = location
 	})
 } else {
@@ -22,7 +23,7 @@ if (location.pathname === '/') {
 var dialup = new Dialup(location.origin.replace(/^https?/, 'ws'), room),
     alone = false
 
-$('#chat').on('change')
+Observable.fromEvent($('#chat'), 'change')
 	.filter(function (e) { return e.target.value })
 	.listen(function (e) {
 		dialup.broadcast(e.target.value)
@@ -36,7 +37,9 @@ dialup.createStream(true, true).then(function (stream) {
 	var player = new Player(stream, {
 		muted: true
 	})
+
 	$('#conference').appendChild(player)
+
 	setTimeout(function(){
 		alone && prompt('You are alone here, send this URL to your friends', location)
 	}, 0)

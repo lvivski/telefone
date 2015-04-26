@@ -10,6 +10,8 @@ if (document.getCSSCanvasContext) {
 	ctx.putImageData(imageData, 0, 0)
 }
 
+var Observable = require('streamlet')
+
 function Player(stream, props) {
 	var player = document.createElement('div')
 	player.className = 'player'
@@ -35,7 +37,7 @@ Player.prototype.controls = function (stream) {
 	var audio = stream.getAudioTracks()[0]
 	var mute = document.createElement('button')
 	mute.textContent = 'A'
-	mute.on('click').listen(function() {
+	Observable.fromEvent(mute, 'click').listen(function() {
 		audio.enabled = !audio.enabled
 		mute.classList.toggle('off')
 	})
@@ -44,7 +46,7 @@ Player.prototype.controls = function (stream) {
 	var video = stream.getVideoTracks()[0]
 	var black = document.createElement('button')
 	black.textContent = 'V'
-	black.on('click').listen(function() {
+	Observable.fromEvent(black, 'click').listen(function() {
 		video.enabled = !video.enabled
 		black.classList.toggle('off')
 	})

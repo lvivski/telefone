@@ -1,22 +1,22 @@
-var Stream = require('streamlet');
+var Observable = require('streamlet');
 
 module.exports = function (element) {
-	var stream = new Stream
+	var controller = Observable.control()
 
-	element.on('dragenter').listen(function (e) {
+	Observable.fromEvent(element, 'dragenter').listen(function (e) {
 		e.preventDefault()
 		e.target.className = 'over'
 	})
 
-	element.on('dragover').listen(function (e) {
+	Observable.fromEvent(element, 'dragover').listen(function (e) {
 		e.preventDefault()
 	})
 
-	element.on('dragleave').listen(function (e) {
+	Observable.fromEvent(element, 'dragleave').listen(function (e) {
 		e.target.className = ''
 	})
 
-	element.on('drop').listen(function (e) {
+	Observable.fromEvent(element, 'drop').listen(function (e) {
 		e.stopPropagation()
 		e.preventDefault()
 		e.target.className = ''
@@ -26,10 +26,10 @@ module.exports = function (element) {
 			reader = new FileReader()
 
 		reader.onload = function (e) {
-			stream.add(e.target.result)
+			controller.add(e.target.result)
 		}
 		reader.readAsArrayBuffer(f)
 	})
 
-	return stream
+	return controller.stream
 }
