@@ -190,7 +190,7 @@ function Player(stream, props) {
 Player.prototype.video = function (stream, props) {
 	var video = document.createElement('video')
 	video.autoplay = true
-	video.src = URL.createObjectURL(stream)
+	video.src = stream
 	for (var i in props) {
 		video[i] = props[i]
 	}
