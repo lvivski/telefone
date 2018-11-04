@@ -20,7 +20,7 @@ if (location.pathname === '/') {
 	room = location.pathname.slice(1)
 }
 
-var dialup = new Dialup(location.origin.replace(/^https?/, 'ws'), room),
+var dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room),
     alone = false
 
 Observable.fromEvent($('#chat'), 'change')
