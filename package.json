@@ -4,20 +4,17 @@
   "author": "Yehor Lvivski <lvivski@gmail.com>",
   "main": "server.js",
   "scripts": {
-    "prestart": "browserify app/scripts/src/app.js -o app/scripts/telefone.js",
+    "prestart": "browserify src/app.js -o app/scripts/telefone.js",
     "start": "node server.js"
   },
   "dependencies": {
-    "dialup": "*",
-    "streamlet": "*",
-    "express": "*",
+    "browserify": "*",
     "compression": "*",
+    "dialup": "*",
+    "express": "*",
     "serve-static": "*",
-    "browserify": "*"
+    "streamlet": "*"
   },
   "license": "MIT",
-  "engines": {
-    "node": "0.10.x"
-  },
   "private": true
 }

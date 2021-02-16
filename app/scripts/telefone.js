@@ -1,328 +1,12 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var Dialup = require('dialup/client'),
-	Observable = require('streamlet'),
-	Player = require('./player'),
-	drop = require('./drop'),
-	$ = require('./bootstrap'),
-	room
-
-if (location.pathname === '/') {
-	room = Array.apply(null, Array(20)).map(function (chars) {
-			return function () {
-				return chars.charAt(Math.floor(Math.random() * chars.length))
-			}
-		}('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')).join('')
-
-	history.pushState(null, '', room)
-	Observable.fromEvent(window, 'popstate').listen(function (e) {
-		location = location
-	})
-} else {
-	room = location.pathname.slice(1)
-}
-
-var dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room),
-    alone = false
-
-Observable.fromEvent($('#chat'), 'change')
-	.filter(function (e) { return e.target.value })
-	.listen(function (e) {
-		dialup.broadcast(e.target.value)
-		var entry = document.createElement('li')
-		entry.innerHTML = e.target.value
-		$('#log').insertBefore(entry, $('#log').firstChild)
-		e.target.value = ''
-	})
-
-dialup.createStream(true, true).then(function (stream) {
-	var player = new Player(stream, {
-		muted: true
-	})
-
-	$('#conference').appendChild(player)
-
-	setTimeout(function(){
-		alone && prompt('You are alone here, send this URL to your friends', location)
-	}, 0)
-})
-
-dialup.onPeers.listen(function (message) {
-	if (message.connections.length === 0) {
-		alone = true
-	}
-})
-
-dialup.onAdd.listen(function (message) {
-	var player = new Player(message.stream, {
-		id: 'remote' + message.id
-	})
-	drop(player).listen(function (data) {
-		dialup.send(message.id, data)
-	})
-	$('#conference').appendChild(player)
-})
-
-dialup.onData.filter(function (message) {
-	return typeof message.data === 'string'
-}).listen(function (message) {
-	var entry = document.createElement('li')
-	entry.innerHTML = '<b>' + message.data + '</b>'
-	$('#log').insertBefore(entry, $('#log').firstChild)
-})
-
-dialup.onData.filter(function (message) {
-	return typeof message.data !== 'string'
-}).listen(function (message) {
-	var entry = document.createElement('li'),
-		url = URL.createObjectURL(new Blob([message.data]))
-	entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
-	$('#log').insertBefore(entry, $('#log').firstChild)
-})
-
-dialup.onLeave.listen(function (message) {
-	var video = $('#remote' + message.id)
-	if (video) {
-		URL.revokeObjectURL(video.src)
-		var player = video.parentNode
-		player.parentNode.removeChild(player)
-	}
-})
-
-function fancyName () {
-	var adjectives = [
-			"autumn", "hidden", "bitter", "misty", "silent", "empty", "dry", "dark",
-			"summer", "icy", "delicate", "quiet", "white", "cool", "spring", "winter",
-			"patient", "twilight", "dawn", "crimson", "wispy", "weathered", "blue",
-			"billowing", "broken", "cold", "damp", "falling", "frosty", "green",
-			"long", "late", "lingering", "bold", "little", "morning", "muddy", "old",
-			"red", "rough", "still", "small", "sparkling", "throbbing", "shy",
-			"wandering", "withered", "wild", "black", "young", "holy", "solitary",
-			"fragrant", "aged", "snowy", "proud", "floral", "restless", "divine",
-			"polished", "ancient", "purple", "lively", "nameless"
-		],
-		nouns = [
-			"waterfall", "river", "breeze", "moon", "rain", "wind", "sea", "morning",
-			"snow", "lake", "sunset", "pine", "shadow", "leaf", "dawn", "glitter",
-			"forest", "hill", "cloud", "meadow", "sun", "glade", "bird", "brook",
-			"butterfly", "bush", "dew", "dust", "field", "fire", "flower", "firefly",
-			"feather", "grass", "haze", "mountain", "night", "pond", "darkness",
-			"snowflake", "silence", "sound", "sky", "shape", "surf", "thunder",
-			"violet", "water", "wildflower", "wave", "water", "resonance", "sun",
-			"wood", "dream", "cherry", "tree", "fog", "frost", "voice", "paper",
-			"frog", "smoke", "star"
-		],
-		rnd = Math.floor(Math.random() * Math.pow(2, 12))
-
-	return  adjectives[rnd >> 6 % 64] + '-' + nouns[rnd % 64] + '-' + rnd
-}
-
-},{"./bootstrap":2,"./drop":3,"./player":4,"dialup/client":6,"streamlet":18}],2:[function(require,module,exports){
-module.exports = function $(selector, context) {
-  var result = (context || document).querySelectorAll(selector)
-  return result.length > 1 ? result : result[0]
-}
-
-
-NodeList.prototype.forEach = [].forEach
-
-NodeList.prototype.filter = [].filter
-
-},{}],3:[function(require,module,exports){
-var Observable = require('streamlet');
-
-module.exports = function (element) {
-	var controller = Observable.control()
-
-	Observable.fromEvent(element, 'dragenter').listen(function (e) {
-		e.preventDefault()
-		e.target.className = 'over'
-	})
-
-	Observable.fromEvent(element, 'dragover').listen(function (e) {
-		e.preventDefault()
-	})
-
-	Observable.fromEvent(element, 'dragleave').listen(function (e) {
-		e.target.className = ''
-	})
-
-	Observable.fromEvent(element, 'drop').listen(function (e) {
-		e.stopPropagation()
-		e.preventDefault()
-		e.target.className = ''
-
-		var files = e.dataTransfer.files,
-			f = files[0],
-			reader = new FileReader()
-
-		reader.onload = function (e) {
-			controller.add(e.target.result)
-		}
-		reader.readAsArrayBuffer(f)
-	})
-
-	return controller.stream
-}
-
-},{"streamlet":18}],4:[function(require,module,exports){
-if (document.getCSSCanvasContext) {
-	var ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300),
-		imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height),
-		pixels = imageData.data
-	for (var i = 0; i < pixels.length; i += 4) {
-		var color = Math.round(Math.random() * 255)
-		pixels[i] = pixels[i + 1] = pixels[i + 2] = color
-		pixels[i + 3] = 5
-	}
-	ctx.putImageData(imageData, 0, 0)
-}
-
-var Observable = require('streamlet')
-
-function Player(stream, props) {
-	var player = document.createElement('div')
-	player.className = 'player'
-	player.appendChild(this.video(stream, props))
-	player.appendChild(this.controls(stream))
-	return player
-}
-
-Player.prototype.video = function (stream, props) {
-	var video = document.createElement('video')
-	video.autoplay = true
-	video.src = stream
-	for (var i in props) {
-		video[i] = props[i]
-	}
-	return video
-}
-
-Player.prototype.controls = function (stream) {
-	var controls = document.createElement('div')
-	controls.className = 'controls'
-
-	var audio = stream.getAudioTracks()[0]
-	var mute = document.createElement('button')
-	mute.textContent = 'A'
-	Observable.fromEvent(mute, 'click').listen(function() {
-		audio.enabled = !audio.enabled
-		mute.classList.toggle('off')
-	})
-	controls.appendChild(mute)
-
-	var video = stream.getVideoTracks()[0]
-	var black = document.createElement('button')
-	black.textContent = 'V'
-	Observable.fromEvent(black, 'click').listen(function() {
-		video.enabled = !video.enabled
-		black.classList.toggle('off')
-	})
-	controls.appendChild(black)
-
-	return controls
-}
-
-module.exports = Player
-
-},{"streamlet":18}],5:[function(require,module,exports){
-// shim for using process in browser
-
-var process = module.exports = {};
-
-process.nextTick = (function () {
-    var canSetImmediate = typeof window !== 'undefined'
-    && window.setImmediate;
-    var canMutationObserver = typeof window !== 'undefined'
-    && window.MutationObserver;
-    var canPost = typeof window !== 'undefined'
-    && window.postMessage && window.addEventListener
-    ;
-
-    if (canSetImmediate) {
-        return function (f) { return window.setImmediate(f) };
-    }
-
-    var queue = [];
-
-    if (canMutationObserver) {
-        var hiddenDiv = document.createElement("div");
-        var observer = new MutationObserver(function () {
-            var queueList = queue.slice();
-            queue.length = 0;
-            queueList.forEach(function (fn) {
-                fn();
-            });
-        });
-
-        observer.observe(hiddenDiv, { attributes: true });
-
-        return function nextTick(fn) {
-            if (!queue.length) {
-                hiddenDiv.setAttribute('yes', 'no');
-            }
-            queue.push(fn);
-        };
-    }
-
-    if (canPost) {
-        window.addEventListener('message', function (ev) {
-            var source = ev.source;
-            if ((source === window || source === null) && ev.data === 'process-tick') {
-                ev.stopPropagation();
-                if (queue.length > 0) {
-                    var fn = queue.shift();
-                    fn();
-                }
-            }
-        }, true);
-
-        return function nextTick(fn) {
-            queue.push(fn);
-            window.postMessage('process-tick', '*');
-        };
-    }
-
-    return function nextTick(fn) {
-        setTimeout(fn, 0);
-    };
-})();
-
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-// TODO(shtylman)
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-
-},{}],6:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 module.exports = require('./dialup');
 
-},{"./dialup":7}],7:[function(require,module,exports){
+},{"./dialup":2}],2:[function(require,module,exports){
 (function(global) {
   "use strict";
   if (typeof global !== "Window") {
     global = window;
   }
-  var navigator = global.navigator, RTCPeerConnection = global.mozRTCPeerConnection || global.webkitRTCPeerConnection || global.PeerConnection, getUserMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia).bind(navigator), RTCIceCandidate = global.mozRTCIceCandidate || global.RTCIceCandidate, RTCSessionDescription = global.mozRTCSessionDescription || global.RTCSessionDescription;
-  global.URL = global.URL || global.webkitURL || global.msURL;
   var Observable, Promise, Audio;
   if (typeof define === "function" && define.amd) {
     define([ "streamlet", "davy", "overtone" ], function(streamlet, davy, overtone) {
@@ -343,7 +27,7 @@ module.exports = require('./dialup');
     Audio = global.Overtone;
   }
   function Dialup(url, room) {
-    var me = null, sockets = [], connections = {}, data = {}, streams = [], controller = Observable.control(), socket = new WebSocket(url);
+    var me = null, sockets = [], connections = {}, data = {}, streams = [], controller = Observable.control(), stream = controller.stream, socket = new WebSocket(url);
     var constraints = {
       optional: [],
       mandatory: {
@@ -358,7 +42,7 @@ module.exports = require('./dialup');
       }
     }, servers = {
       iceServers: [ {
-        url: "stun:stun.l.google.com:19302"
+        urls: "stun:stun.l.google.com:19302"
       } ]
     }, config = {
       optional: [ {
@@ -374,31 +58,31 @@ module.exports = require('./dialup');
     socket.onmessage = function(e) {
       controller.add(JSON.parse(e.data));
     };
-    this.onOffer = controller.stream.filter(function(message) {
+    this.onOffer = stream.filter(function(message) {
       return message.type === "offer";
     });
-    this.onAnswer = controller.stream.filter(function(message) {
+    this.onAnswer = stream.filter(function(message) {
       return message.type === "answer";
     });
-    this.onCandidate = controller.stream.filter(function(message) {
+    this.onCandidate = stream.filter(function(message) {
       return message.type === "candidate";
     });
-    this.onNew = controller.stream.filter(function(message) {
+    this.onNew = stream.filter(function(message) {
       return message.type === "new";
     });
-    this.onPeers = controller.stream.filter(function(message) {
+    this.onPeers = stream.filter(function(message) {
       return message.type === "peers";
     });
-    this.onLeave = controller.stream.filter(function(message) {
+    this.onLeave = stream.filter(function(message) {
       return message.type === "leave";
     });
-    this.onAdd = controller.stream.filter(function(message) {
+    this.onAdd = stream.filter(function(message) {
       return message.type === "add";
     });
-    this.onRemove = controller.stream.filter(function(message) {
+    this.onRemove = stream.filter(function(message) {
       return message.type === "remove";
     });
-    this.onData = controller.stream.filter(function(message) {
+    this.onData = stream.filter(function(message) {
       return message.type === "data";
     });
     this.broadcast = function(message) {
@@ -412,10 +96,10 @@ module.exports = require('./dialup');
     };
     this.createStream = function(audio, video) {
       var defer = Promise.defer();
-      getUserMedia({
+      navigator.mediaDevices.getUserMedia({
         audio: audio,
         video: video
-      }, function(stream) {
+      }).then(function(stream) {
         Audio.filter(stream);
         streams.push(stream);
         for (var i = 0; i < sockets.length; ++i) {
@@ -423,10 +107,13 @@ module.exports = require('./dialup');
           connections[socket] = createPeerConnection(socket);
         }
         for (i = 0; i < streams.length; ++i) {
-          var stream = streams[i];
+          stream = streams[i];
           for (socket in connections) {
             var connection = connections[socket];
-            connection.addStream(stream);
+            console.log(connection);
+            stream.getTracks().forEach(function(track) {
+              connection.addTrack(track, stream);
+            });
           }
         }
         for (socket in connections) {
@@ -450,6 +137,7 @@ module.exports = require('./dialup');
         sdpMLineIndex: message.label,
         candidate: message.candidate
       });
+      console.log(message, candidate);
       connections[message.id].addIceCandidate(candidate);
     });
     this.onNew.listen(function(message) {
@@ -522,7 +210,7 @@ module.exports = require('./dialup');
       var pc = new RTCPeerConnection(servers, config);
       pc.onicecandidate = function(e) {
         if (e.candidate != null) {
-          send("candidate", {
+          if (e.candidate.candidate) send("candidate", {
             label: e.candidate.sdpMLineIndex,
             id: id,
             candidate: e.candidate.candidate
@@ -541,11 +229,11 @@ module.exports = require('./dialup');
           break;
         }
       };
-      pc.onaddstream = function(e) {
+      pc.ontrack = function(e) {
         controller.add({
           type: "add",
           id: id,
-          stream: e.stream
+          stream: e.streams[0]
         });
       };
       pc.onremovestream = function(e) {
@@ -566,8 +254,8 @@ module.exports = require('./dialup');
     }
   }
 })(this);
-},{"davy":9,"overtone":12,"streamlet":14}],8:[function(require,module,exports){
-(function(global) {
+},{"davy":4,"overtone":5,"streamlet":7}],3:[function(require,module,exports){
+(function(root) {
   "use strict";
   var nextTick;
   if (typeof define === "function" && define.amd) {
@@ -579,58 +267,53 @@ module.exports = require('./dialup');
     module.exports = Promise;
     nextTick = require("subsequent");
   } else {
-    global.Davy = Promise;
-    nextTick = global.subsequent;
+    root.Davy = Promise;
+    nextTick = root.subsequent;
   }
   function Promise(fn) {
     this.value = undefined;
     this.__deferreds__ = [];
     if (arguments.length > 0) {
-      var resolver = new Resolver(this);
-      if (typeof fn == "function") {
-        try {
-          fn(function(val) {
-            resolver.fulfill(val);
-          }, function(err) {
-            resolver.reject(err);
-          }, function(val) {
-            resolver.notify(val);
-          });
-        } catch (e) {
-          resolver.reject(e);
-        }
+      if (isFunction(fn)) {
+        Resolver.resolve(this, fn);
       } else {
-        resolver.fulfill(fn);
+        throw new TypeError("Promise constructor's argument is not a function");
       }
     }
   }
   Promise.prototype.isFulfilled = false;
   Promise.prototype.isRejected = false;
-  Promise.prototype.then = function(onFulfill, onReject, onNotify) {
-    var resolver = new Resolver(new Promise()), deferred = {
-      resolver: resolver,
-      fulfill: onFulfill,
-      reject: onReject,
-      notify: onNotify
-    };
+  Promise.prototype.then = function(onFulfilled, onRejected) {
+    var promise = new Promise(), deferred = new Deferred(promise, onFulfilled, onRejected);
     if (this.isFulfilled || this.isRejected) {
-      Resolver.resolve([ deferred ], this.isFulfilled ? Resolver.SUCCESS : Resolver.FAILURE, this.value);
+      Resolver.handle(this, deferred);
     } else {
       this.__deferreds__.push(deferred);
     }
-    return resolver.promise;
+    return promise;
   };
+  function Deferred(promise, onFulfilled, onRejected) {
+    return {
+      fulfill: onFulfilled,
+      reject: onRejected,
+      promise: promise
+    };
+  }
   function Resolver(promise) {
     this.promise = promise;
   }
+  Resolver.prototype.fulfill = function(value) {
+    Resolver.fulfill(this.promise, value);
+  };
+  Resolver.prototype.reject = function(error) {
+    Resolver.reject(this.promise, error);
+  };
   Resolver.SUCCESS = "fulfill";
   Resolver.FAILURE = "reject";
-  Resolver.NOTIFY = "notify";
-  Resolver.prototype.fulfill = function(value) {
-    var promise = this.promise;
+  Resolver.fulfill = function(promise, value) {
     if (promise.isFulfilled || promise.isRejected) return;
     if (value === promise) {
-      this.reject(new TypeError("Can't resolve a promise with itself."));
+      Resolver.reject(promise, new TypeError("Can't resolve a promise with itself."));
       return;
     }
     if (isObject(value) || isFunction(value)) {
@@ -638,77 +321,69 @@ module.exports = require('./dialup');
       try {
         then = value.then;
       } catch (e) {
-        this.reject(e);
+        Resolver.reject(promise, e);
         return;
       }
       if (isFunction(then)) {
-        var isResolved = false, self = this;
-        try {
-          then.call(value, function(val) {
-            if (!isResolved) {
-              isResolved = true;
-              self.fulfill(val);
-            }
-          }, function(err) {
-            if (!isResolved) {
-              isResolved = true;
-              self.reject(err);
-            }
-          }, function(val) {
-            self.notify(val);
-          });
-        } catch (e) {
-          if (!isResolved) {
-            this.reject(e);
-          }
-        }
+        Resolver.resolve(promise, then.bind(value));
         return;
       }
     }
     promise.isFulfilled = true;
-    this.complete(value);
+    Resolver.complete(promise, value);
   };
-  Resolver.prototype.reject = function(error) {
-    var promise = this.promise;
+  Resolver.reject = function(promise, error) {
     if (promise.isFulfilled || promise.isRejected) return;
     promise.isRejected = true;
-    this.complete(error);
+    Resolver.complete(promise, error);
   };
-  Resolver.prototype.notify = function(value) {
-    var promise = this.promise;
-    if (promise.isFulfilled || promise.isRejected) return;
-    Resolver.resolve(promise.__deferreds__, Promise.NOTIFY, value);
-  };
-  Resolver.prototype.complete = function(value) {
-    var promise = this.promise, type = promise.isFulfilled ? Resolver.SUCCESS : Resolver.FAILURE;
+  Resolver.complete = function(promise, value) {
     promise.value = value;
-    Resolver.resolve(promise.__deferreds__, type, value);
+    var deferreds = promise.__deferreds__;
+    if (!deferreds.length) return;
+    var i = 0;
+    while (i < deferreds.length) {
+      Resolver.handle(promise, deferreds[i++]);
+    }
     promise.__deferreds__ = undefined;
   };
-  Resolver.resolve = function(deferreds, type, value) {
-    if (!deferreds.length) return;
+  Resolver.handle = function(promise, deferred) {
+    var type = promise.isFulfilled ? Resolver.SUCCESS : Resolver.FAILURE, fn = deferred[type], value = promise.value;
+    promise = deferred.promise;
     nextTick(function() {
-      var i = 0;
-      while (i < deferreds.length) {
-        var deferred = deferreds[i++], fn = deferred[type], resolver = deferred.resolver;
-        if (isFunction(fn)) {
-          var val;
-          try {
-            val = fn(value);
-          } catch (e) {
-            resolver.reject(e);
-            continue;
-          }
-          if (type === Resolver.NOTIFY) {
-            resolver.notify(val);
-          } else {
-            resolver.fulfill(val);
-          }
-        } else {
-          resolver[type](value);
+      if (isFunction(fn)) {
+        var val;
+        try {
+          val = fn(value);
+        } catch (e) {
+          Resolver.reject(promise, e);
+          return;
         }
+        Resolver.fulfill(promise, val);
+      } else {
+        Resolver[type](promise, value);
       }
     });
+  };
+  Resolver.resolve = function(promise, fn) {
+    var isPending = true;
+    try {
+      fn(function(val) {
+        if (isPending) {
+          isPending = false;
+          Resolver.fulfill(promise, val);
+        }
+      }, function(err) {
+        if (isPending) {
+          isPending = false;
+          Resolver.reject(promise, err);
+        }
+      });
+    } catch (e) {
+      if (isPending) {
+        Resolver.reject(promise, e);
+      }
+    }
   };
   Promise.prototype.progress = function(onProgress) {
     return this.then(null, null, onProgress);
@@ -740,7 +415,7 @@ module.exports = require('./dialup');
     }, onRejected);
   };
   Promise.resolve = Promise.cast = function(val) {
-    if (isObject(val) && isFunction(val.then)) {
+    if (isLikePromise(val)) {
       return val;
     }
     return new Promise(val);
@@ -755,7 +430,7 @@ module.exports = require('./dialup');
   };
   Promise.each = function(list, iterator) {
     var resolver = Promise.defer(), len = list.length;
-    if (len === 0) resolver.reject(TypeError());
+    if (len === 0) resolver.fulfill(TypeError());
     var i = 0;
     while (i < len) {
       iterator(list[i], i++, list);
@@ -769,7 +444,7 @@ module.exports = require('./dialup');
       resolver.reject(err);
     }
     function resolve(value, i, list) {
-      if (isObject(value) && isFunction(value.then)) {
+      if (isLikePromise(value)) {
         value.then(function(val) {
           resolve(val, i, list);
         }, reject);
@@ -788,7 +463,7 @@ module.exports = require('./dialup');
       resolver.reject(err);
     }
     function resolve(value) {
-      if (isObject(value) && isFunction(value.then)) {
+      if (isLikePromise(value)) {
         value.then(resolve, reject);
         return;
       }
@@ -796,18 +471,66 @@ module.exports = require('./dialup');
     }
   };
   Promise.wrap = function(fn) {
+    var resolver = Promise.defer();
+    function callback(err, val) {
+      if (err) {
+        resolver.reject(err);
+      } else {
+        resolver.fulfill(val);
+      }
+    }
     return function() {
-      var resolver = new Resolver(new Promise());
-      arguments[arguments.length++] = function(err, val) {
-        if (err) {
-          resolver.reject(err);
-        } else {
-          resolver.fulfill(val);
+      var len = arguments.length, args = new Array(len), i = 0;
+      while (i < len) {
+        args[i] = arguments[i++];
+      }
+      try {
+        switch (len) {
+         case 2:
+          fn.call(this, args[0], args[1], callback);
+          break;
+
+         case 1:
+          fn.call(this, args[0], callback);
+          break;
+
+         case 0:
+          fn.call(this, callback);
+          break;
+
+         default:
+          args.push(callback);
+          fn.apply(this, args);
         }
-      };
-      fn.apply(this, arguments);
+      } catch (e) {
+        resolver.reject(e);
+      }
       return resolver.promise;
     };
+  };
+  Promise.traverse = function(tree, path) {
+    function visit(node, depth) {
+      return Promise.resolve(node).then(function(node) {
+        if (!isObject(node) || isEmpty(node)) {
+          return node;
+        }
+        var isArray = Array.isArray(node), result = isArray ? [] : {}, promises = Object.keys(node).map(function(key) {
+          if (path && path[depth] !== key) {
+            return Promise.resolve();
+          }
+          var value = node[key];
+          if (isArray) {
+            key = result.length;
+          }
+          result[key] = null;
+          return visit(value, depth + 1).then(function(unwrapped) {
+            result[key] = unwrapped;
+          });
+        });
+        return Promise.all(promises).yield(result);
+      });
+    }
+    return visit(tree, 0);
   };
   function isObject(obj) {
     return obj && typeof obj === "object";
@@ -815,93 +538,30 @@ module.exports = require('./dialup');
   function isFunction(fn) {
     return fn && typeof fn === "function";
   }
+  function isEmpty(obj) {
+    return Object.keys(obj).length === 0;
+  }
+  function isLikePromise(obj) {
+    return isObject(obj) && isFunction(obj.then);
+  }
   function parse(obj) {
     if (obj.length === 1 && Array.isArray(obj[0])) {
       return obj[0];
     } else {
-      var args = new Array(obj.length);
-      for (var i = 0; i < args.length; ++i) {
-        args[i] = obj[i];
+      var args = new Array(obj.length), i = 0;
+      while (i < args.length) {
+        args[i] = obj[i++];
       }
       return args;
     }
   }
-})(this);
-},{"subsequent":10}],9:[function(require,module,exports){
+})(Function("return this")());
+},{"subsequent":9}],4:[function(require,module,exports){
 module.exports = require('./davy.js')
-},{"./davy.js":8}],10:[function(require,module,exports){
-module.exports = require('./subsequent.js')
-},{"./subsequent.js":11}],11:[function(require,module,exports){
-(function (process){
-(function(global) {
-  "use strict";
-  var nextTick = function(nextTick, buffer, length, tick) {
-    buffer = new Array(1e4);
-    length = 0;
-    function enqueue(fn) {
-      if (length === buffer.length) {
-        length = buffer.push(fn);
-      } else {
-        buffer[length++] = fn;
-      }
-      if (!tick) {
-        return tick = true;
-      }
-    }
-    function execute() {
-      var i = 0;
-      while (i < length) {
-        buffer[i]();
-        buffer[i++] = undefined;
-      }
-      length = 0;
-      tick = false;
-    }
-    if (typeof setImmediate === "function") {
-      nextTick = function(fn) {
-        enqueue(fn) && setImmediate(execute);
-      };
-    } else if (typeof process === "object" && process.nextTick) {
-      nextTick = function(fn) {
-        enqueue(fn) && process.nextTick(execute);
-      };
-    } else if (global.postMessage) {
-      var message = "__subsequent", onMessage = function(e) {
-        if (e.data === message) {
-          e.stopPropagation && e.stopPropagation();
-          execute();
-        }
-      };
-      if (global.addEventListener) {
-        global.addEventListener("message", onMessage, true);
-      } else {
-        global.attachEvent("onmessage", onMessage);
-      }
-      nextTick = function(fn) {
-        enqueue(fn) && global.postMessage(message, "*");
-      };
-    } else {
-      nextTick = function(fn) {
-        enqueue(fn) && setTimeout(execute, 0);
-      };
-    }
-    return nextTick;
-  }();
-  if (typeof define === "function" && define.amd) {
-    define(function() {
-      return nextTick;
-    });
-  } else if (typeof module === "object" && module.exports) {
-    module.exports = nextTick;
-  } else {
-    global.subsequent = nextTick;
-  }
-})(this);
-}).call(this,require('_process'))
-},{"_process":5}],12:[function(require,module,exports){
+},{"./davy.js":3}],5:[function(require,module,exports){
 module.exports = require('./overtone.js')
 
-},{"./overtone.js":13}],13:[function(require,module,exports){
+},{"./overtone.js":6}],6:[function(require,module,exports){
 (function(global) {
   "use strict";
   if (typeof define === "function" && define.amd) {
@@ -931,14 +591,10 @@ module.exports = require('./overtone.js')
   }
   var AudioContext = global.AudioContext || global.mozAudioContext, MediaStream = global.MediaStream || global.webkitMediaStream || global.mozMediaStream;
 })(this);
-},{}],14:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 module.exports = require('./streamlet.js')
-},{"./streamlet.js":17}],15:[function(require,module,exports){
-module.exports=require(10)
-},{"./subsequent.js":16,"/Users/lvivski/Projects/webrtc/telefone/node_modules/dialup/node_modules/davy/node_modules/subsequent/index.js":10}],16:[function(require,module,exports){
-module.exports=require(11)
-},{"/Users/lvivski/Projects/webrtc/telefone/node_modules/dialup/node_modules/davy/node_modules/subsequent/subsequent.js":11,"_process":5}],17:[function(require,module,exports){
-(function(global) {
+},{"./streamlet.js":8}],8:[function(require,module,exports){
+(function(root) {
   "use strict";
   var nextTick;
   if (typeof define === "function" && define.amd) {
@@ -950,8 +606,8 @@ module.exports=require(11)
     module.exports = Observable;
     nextTick = require("subsequent");
   } else {
-    global.Streamlet = Observable;
-    nextTick = global.subsequent;
+    root.Streamlet = Observable;
+    nextTick = root.subsequent;
   }
   function Observable(fn) {
     this.__listeners__ = [];
@@ -983,68 +639,31 @@ module.exports=require(11)
     };
     listeners.push(listener);
     return function() {
-      var index = listeners.indexOf(listener);
-      listeners.splice(index, 1);
+      var index = (listeners || []).indexOf(listener);
+      if (index !== -1) {
+        listeners.splice(index, 1);
+      }
     };
   };
   Observable.prototype.transform = function(transformer) {
-    var controller = new Controller(new Observable(this.isSync));
-    this.listen(transformer(controller), function(reason) {
+    var controller = Observable.control(this.isSync), unsubscribe = this.listen(transformer(controller), function(reason) {
       controller.fail(reason);
     }, function() {
       controller.done();
     });
+    controller.stream.end(unsubscribe);
     return controller.stream;
   };
-  Observable.prototype.map = function(convert) {
-    return this.transform(function(controller) {
-      return function(data) {
-        data = convert(data);
-        controller.add(data);
-      };
+  Observable.prototype.pipe = function(stream) {
+    var controller = new Controller(stream), unsubscribe = this.listen(function(data) {
+      controller.next(data);
+    }, function(reason) {
+      controller.fail(reason);
+    }, function() {
+      controller.done();
     });
-  };
-  Observable.prototype.filter = function(test) {
-    return this.transform(function(controller) {
-      return function(data) {
-        if (test(data)) controller.add(data);
-      };
-    });
-  };
-  Observable.prototype.skip = function(count) {
-    return this.transform(function(controller) {
-      return function(data) {
-        if (count-- > 0) {
-          controller.done();
-        } else {
-          controller.add(data);
-        }
-      };
-    });
-  };
-  Observable.prototype.take = function(count) {
-    return this.transform(function(controller) {
-      return function(data) {
-        if (count-- > 0) {
-          controller.add(data);
-        } else {
-          controller.done();
-        }
-      };
-    });
-  };
-  Observable.prototype.expand = function(expand) {
-    return this.transform(function(controller) {
-      return function(data) {
-        data = expand(data);
-        for (var i in data) {
-          controller.add(data[i]);
-        }
-      };
-    });
-  };
-  Observable.prototype.merge = function(streamTwo) {
-    return Observable.merge(this, streamTwo);
+    stream.end(unsubscribe);
+    return stream;
   };
   function Controller(stream) {
     this.stream = stream;
@@ -1085,42 +704,141 @@ module.exports=require(11)
         } catch (e) {
           if (isFunction(fail)) {
             fail(e);
-          } else {
-            throw e;
           }
         }
       }
     }
   };
-  Observable.create = function(fn) {
-    return new Observable(fn);
+  Observable.prototype["catch"] = function(onFail) {
+    return this.listen(null, onFail);
   };
-  Observable.createSync = function(fn) {
-    var stream = Observable.create(fn);
-    stream.isSync = true;
-    return stream;
+  Observable.prototype.end = function(onDone) {
+    return this.listen(null, null, onDone);
   };
-  Observable.control = function() {
-    return new Controller(Observable.create());
-  };
-  Observable.controlSync = function() {
-    return new Controller(Observable.createSync());
-  };
-  Observable.fromEvent = function(element, eventName) {
-    return Observable.createSync(function(next) {
-      element.addEventListener(eventName, function(e) {
-        next(e);
-      }, false);
+  Observable.prototype.map = function(convert) {
+    return this.transform(function(controller) {
+      return function(data) {
+        data = convert(data);
+        controller.add(data);
+      };
     });
   };
-  Observable.merge = function(streams) {
-    streams = parse(streams);
-    var controller = Observable.control(), listener = function(data) {
+  Observable.prototype.filter = function(test) {
+    return this.transform(function(controller) {
+      return function(data) {
+        if (!test(data)) return;
+        controller.add(data);
+      };
+    });
+  };
+  Observable.prototype.skip = function(count) {
+    return this.transform(function(controller) {
+      return function(data) {
+        if (count-- > 0) return;
+        controller.add(data);
+      };
+    });
+  };
+  Observable.prototype.skipWhile = function(test) {
+    return this.transform(function(controller) {
+      return function(data) {
+        if (test(data)) return;
+        controller.add(data);
+      };
+    });
+  };
+  Observable.prototype.skipDuplicates = function(compare, seed) {
+    compare || (compare = function(a, b) {
+      return a === b;
+    });
+    return this.transform(function(controller) {
+      return function(data) {
+        if (compare(data, seed)) return;
+        controller.add(seed = data);
+      };
+    });
+  };
+  Observable.prototype.take = function(count) {
+    return this.transform(function(controller) {
+      return function(data) {
+        if (count-- > 0) {
+          controller.add(data);
+        } else {
+          controller.done();
+        }
+      };
+    });
+  };
+  Observable.prototype.takeWhile = function(test) {
+    return this.transform(function(controller) {
+      return function(data) {
+        if (test(data)) {
+          controller.add(data);
+        } else {
+          controller.done();
+        }
+      };
+    });
+  };
+  Observable.prototype.expand = function(expand) {
+    return this.transform(function(controller) {
+      return function(data) {
+        data = expand(data);
+        for (var i in data) {
+          controller.add(data[i]);
+        }
+      };
+    });
+  };
+  Observable.prototype.scan = function(combine, seed) {
+    return this.transform(function(controller) {
+      return function(data) {
+        if (seed != null) {
+          data = combine(seed, data);
+        }
+        controller.add(seed = data);
+      };
+    });
+  };
+  Observable.prototype.merge = function(stream) {
+    return Observable.merge(this, stream);
+  };
+  Observable.control = function(isSync) {
+    var observable = new Observable();
+    observable.isSync = isSync;
+    return new Controller(observable);
+  };
+  Observable.fromEvent = function(element, eventName) {
+    var controller = Observable.control(true);
+    element.addEventListener(eventName, function(e) {
+      controller.add(e);
+    }, false);
+    return controller.stream;
+  };
+  Observable.fromPromise = function(promise) {
+    var controller = Observable.control();
+    onFullfilled = function(data) {
       controller.add(data);
+      controller.done();
+    }, onRejected = function(reason) {
+      controller.fail(reason);
+      controller.done();
     };
-    var i = 0;
-    while (i < streams.length) {
-      streams[i++].listen(listener);
+    promise.then(onFullfilled, onRejected);
+    return controller.stream;
+  };
+  Observable.merge = function(streams) {
+    streams = parse(arguments);
+    var isSync = streams[0].isSync, controller = Observable.control(isSync), count = streams.length, i = 0, onNext = function(data) {
+      controller.add(data);
+    }, onFail = function(reason) {
+      controller.fail(reason);
+    }, onDone = function() {
+      if (--count > 0) return;
+      controller.done();
+    };
+    while (i < count) {
+      streams[i++].listen(onNext, onFail, onDone);
     }
     return controller.stream;
   };
@@ -1144,13 +862,611 @@ module.exports=require(11)
       fn.apply(null, args);
     });
   }
-})(this);
-},{"subsequent":15}],18:[function(require,module,exports){
-module.exports=require(14)
-},{"./streamlet.js":21,"/Users/lvivski/Projects/webrtc/telefone/node_modules/dialup/node_modules/streamlet/index.js":14}],19:[function(require,module,exports){
-module.exports=require(10)
-},{"./subsequent.js":20,"/Users/lvivski/Projects/webrtc/telefone/node_modules/dialup/node_modules/davy/node_modules/subsequent/index.js":10}],20:[function(require,module,exports){
-module.exports=require(11)
-},{"/Users/lvivski/Projects/webrtc/telefone/node_modules/dialup/node_modules/davy/node_modules/subsequent/subsequent.js":11,"_process":5}],21:[function(require,module,exports){
-module.exports=require(17)
-},{"/Users/lvivski/Projects/webrtc/telefone/node_modules/dialup/node_modules/streamlet/streamlet.js":17,"subsequent":19}]},{},[1]);
+})(Function("return this")());
+},{"subsequent":9}],9:[function(require,module,exports){
+module.exports = require('./subsequent.js')
+},{"./subsequent.js":10}],10:[function(require,module,exports){
+(function (process,setImmediate){(function (){
+(function(root) {
+  "use strict";
+  var nextTick = function(nextTick, buffer, length, tick) {
+    buffer = new Array(1e4);
+    length = 0;
+    function enqueue(fn) {
+      if (length === buffer.length) {
+        length = buffer.push(fn);
+      } else {
+        buffer[length++] = fn;
+      }
+      if (!tick) {
+        return tick = true;
+      }
+    }
+    function execute() {
+      var i = 0;
+      while (i < length) {
+        buffer[i]();
+        buffer[i++] = undefined;
+      }
+      length = 0;
+      tick = false;
+    }
+    if (typeof setImmediate === "function") {
+      return function(fn) {
+        enqueue(fn) && setImmediate(execute);
+      };
+    }
+    if (typeof process === "object" && process.nextTick) {
+      return function(fn) {
+        enqueue(fn) && process.nextTick(execute);
+      };
+    }
+    var MutationObserver = root.MutationObserver;
+    if (typeof MutationObserver !== "undefined") {
+      var val = 1, node = root.document.createTextNode("");
+      new MutationObserver(execute).observe(node, {
+        characterData: true
+      });
+      return function(fn) {
+        enqueue(fn) && (node.data = val *= -1);
+      };
+    }
+    if (root.postMessage) {
+      var isPostMessageAsync = true;
+      if (root.attachEvent) {
+        var checkAsync = function() {
+          isPostMessageAsync = false;
+        };
+        root.attachEvent("onmessage", checkAsync);
+        root.postMessage("__check", "*");
+        root.detachEvent("onmessage", checkAsync);
+      }
+      if (isPostMessageAsync) {
+        var message = "__subsequent", onMessage = function(e) {
+          if (e.data === message) {
+            e.stopPropagation && e.stopPropagation();
+            execute();
+          }
+        };
+        if (root.addEventListener) {
+          root.addEventListener("message", onMessage, true);
+        } else {
+          root.attachEvent("onmessage", onMessage);
+        }
+        return function(fn) {
+          enqueue(fn) && root.postMessage(message, "*");
+        };
+      }
+    }
+    var document = root.document;
+    if ("onreadystatechange" in document.createElement("script")) {
+      var createScript = function() {
+        var script = document.createElement("script");
+        script.onreadystatechange = function() {
+          script.parentNode.removeChild(script);
+          script = script.onreadystatechange = null;
+          execute();
+        };
+        (document.documentElement || document.body).appendChild(script);
+      };
+      return function(fn) {
+        enqueue(fn) && createScript();
+      };
+    }
+    return function(fn) {
+      enqueue(fn) && setTimeout(execute, 0);
+    };
+  }();
+  if (typeof define === "function" && define.amd) {
+    define(function() {
+      return nextTick;
+    });
+  } else if (typeof module === "object" && module.exports) {
+    module.exports = nextTick;
+  } else {
+    root.subsequent = nextTick;
+  }
+})(Function("return this")());
+}).call(this)}).call(this,require('_process'),require("timers").setImmediate)
+},{"_process":11,"timers":16}],11:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],12:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"./streamlet.js":13,"dup":7}],13:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"subsequent":14}],14:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"./subsequent.js":15,"dup":9}],15:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"_process":11,"dup":10,"timers":16}],16:[function(require,module,exports){
+(function (setImmediate,clearImmediate){(function (){
+var nextTick = require('process/browser.js').nextTick;
+var apply = Function.prototype.apply;
+var slice = Array.prototype.slice;
+var immediateIds = {};
+var nextImmediateId = 0;
+
+// DOM APIs, for completeness
+
+exports.setTimeout = function() {
+  return new Timeout(apply.call(setTimeout, window, arguments), clearTimeout);
+};
+exports.setInterval = function() {
+  return new Timeout(apply.call(setInterval, window, arguments), clearInterval);
+};
+exports.clearTimeout =
+exports.clearInterval = function(timeout) { timeout.close(); };
+
+function Timeout(id, clearFn) {
+  this._id = id;
+  this._clearFn = clearFn;
+}
+Timeout.prototype.unref = Timeout.prototype.ref = function() {};
+Timeout.prototype.close = function() {
+  this._clearFn.call(window, this._id);
+};
+
+// Does not start the time, just sets up the members needed.
+exports.enroll = function(item, msecs) {
+  clearTimeout(item._idleTimeoutId);
+  item._idleTimeout = msecs;
+};
+
+exports.unenroll = function(item) {
+  clearTimeout(item._idleTimeoutId);
+  item._idleTimeout = -1;
+};
+
+exports._unrefActive = exports.active = function(item) {
+  clearTimeout(item._idleTimeoutId);
+
+  var msecs = item._idleTimeout;
+  if (msecs >= 0) {
+    item._idleTimeoutId = setTimeout(function onTimeout() {
+      if (item._onTimeout)
+        item._onTimeout();
+    }, msecs);
+  }
+};
+
+// That's not how node.js implements it but the exposed api is the same.
+exports.setImmediate = typeof setImmediate === "function" ? setImmediate : function(fn) {
+  var id = nextImmediateId++;
+  var args = arguments.length < 2 ? false : slice.call(arguments, 1);
+
+  immediateIds[id] = true;
+
+  nextTick(function onNextTick() {
+    if (immediateIds[id]) {
+      // fn.call() is faster so we optimize for the common use-case
+      // @see http://jsperf.com/call-apply-segu
+      if (args) {
+        fn.apply(null, args);
+      } else {
+        fn.call(null);
+      }
+      // Prevent ids from leaking
+      exports.clearImmediate(id);
+    }
+  });
+
+  return id;
+};
+
+exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate : function(id) {
+  delete immediateIds[id];
+};
+}).call(this)}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
+},{"process/browser.js":11,"timers":16}],17:[function(require,module,exports){
+var Dialup = require('dialup/client'),
+	Observable = require('streamlet'),
+	Player = require('./player'),
+	drop = require('./drop'),
+	$ = require('./bootstrap'),
+	room
+
+if (location.pathname === '/') {
+	room = Array.apply(null, Array(20)).map(function (chars) {
+			return function () {
+				return chars.charAt(Math.floor(Math.random() * chars.length))
+			}
+		}('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')).join('')
+
+	history.pushState(null, '', room)
+	Observable.fromEvent(window, 'popstate').listen(function (e) {
+		location = location
+	})
+} else {
+	room = location.pathname.slice(1)
+}
+
+var dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room),
+    alone = false
+
+Observable.fromEvent($('#chat'), 'change')
+	.filter(function (e) { return e.target.value })
+	.listen(function (e) {
+		dialup.broadcast(e.target.value)
+		var entry = document.createElement('li')
+		entry.innerHTML = e.target.value
+		$('#log').insertBefore(entry, $('#log').firstChild)
+		e.target.value = ''
+	})
+
+dialup.createStream(true, true).then(function (stream) {
+	var player = new Player(stream, {
+		muted: true
+	})
+
+	$('#conference').appendChild(player)
+
+	setTimeout(function(){
+		alone && prompt('You are alone here, send this URL to your friends', location)
+	}, 0)
+})
+
+dialup.onPeers.listen(function (message) {
+	if (message.connections.length === 0) {
+		alone = true
+	}
+})
+
+dialup.onAdd.listen(function (message) {
+	if (!document.querySelector('#remote' + message.id)) {
+		var player = new Player(message.stream, {
+			id: 'remote' + message.id
+		})
+		drop(player).listen(function (data) {
+			dialup.send(message.id, data)
+		})
+		$('#conference').appendChild(player)
+	}
+})
+
+dialup.onData.filter(function (message) {
+	return typeof message.data === 'string'
+}).listen(function (message) {
+	var entry = document.createElement('li')
+	entry.innerHTML = '<b>' + message.data + '</b>'
+	$('#log').insertBefore(entry, $('#log').firstChild)
+})
+
+dialup.onData.filter(function (message) {
+	return typeof message.data !== 'string'
+}).listen(function (message) {
+	var entry = document.createElement('li'),
+		url = URL.createObjectURL(new Blob([message.data]))
+	entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
+	$('#log').insertBefore(entry, $('#log').firstChild)
+})
+
+dialup.onLeave.listen(function (message) {
+	var video = $('#remote' + message.id)
+	if (video) {
+		URL.revokeObjectURL(video.src)
+		var player = video.parentNode
+		player.parentNode.removeChild(player)
+	}
+})
+
+function fancyName () {
+	var adjectives = [
+			"autumn", "hidden", "bitter", "misty", "silent", "empty", "dry", "dark",
+			"summer", "icy", "delicate", "quiet", "white", "cool", "spring", "winter",
+			"patient", "twilight", "dawn", "crimson", "wispy", "weathered", "blue",
+			"billowing", "broken", "cold", "damp", "falling", "frosty", "green",
+			"long", "late", "lingering", "bold", "little", "morning", "muddy", "old",
+			"red", "rough", "still", "small", "sparkling", "throbbing", "shy",
+			"wandering", "withered", "wild", "black", "young", "holy", "solitary",
+			"fragrant", "aged", "snowy", "proud", "floral", "restless", "divine",
+			"polished", "ancient", "purple", "lively", "nameless"
+		],
+		nouns = [
+			"waterfall", "river", "breeze", "moon", "rain", "wind", "sea", "morning",
+			"snow", "lake", "sunset", "pine", "shadow", "leaf", "dawn", "glitter",
+			"forest", "hill", "cloud", "meadow", "sun", "glade", "bird", "brook",
+			"butterfly", "bush", "dew", "dust", "field", "fire", "flower", "firefly",
+			"feather", "grass", "haze", "mountain", "night", "pond", "darkness",
+			"snowflake", "silence", "sound", "sky", "shape", "surf", "thunder",
+			"violet", "water", "wildflower", "wave", "water", "resonance", "sun",
+			"wood", "dream", "cherry", "tree", "fog", "frost", "voice", "paper",
+			"frog", "smoke", "star"
+		],
+		rnd = Math.floor(Math.random() * Math.pow(2, 12))
+
+	return  adjectives[rnd >> 6 % 64] + '-' + nouns[rnd % 64] + '-' + rnd
+}
+
+},{"./bootstrap":18,"./drop":19,"./player":20,"dialup/client":1,"streamlet":12}],18:[function(require,module,exports){
+module.exports = function $(selector, context) {
+  var result = (context || document).querySelectorAll(selector)
+  return result.length > 1 ? result : result[0]
+}
+
+
+NodeList.prototype.forEach = [].forEach
+
+NodeList.prototype.filter = [].filter
+
+},{}],19:[function(require,module,exports){
+var Observable = require('streamlet');
+
+module.exports = function (element) {
+	var controller = Observable.control()
+
+	Observable.fromEvent(element, 'dragenter').listen(function (e) {
+		e.preventDefault()
+		e.target.className = 'over'
+	})
+
+	Observable.fromEvent(element, 'dragover').listen(function (e) {
+		e.preventDefault()
+	})
+
+	Observable.fromEvent(element, 'dragleave').listen(function (e) {
+		e.target.className = ''
+	})
+
+	Observable.fromEvent(element, 'drop').listen(function (e) {
+		e.stopPropagation()
+		e.preventDefault()
+		e.target.className = ''
+
+		var files = e.dataTransfer.files,
+			f = files[0],
+			reader = new FileReader()
+
+		reader.onload = function (e) {
+			controller.add(e.target.result)
+		}
+		reader.readAsArrayBuffer(f)
+	})
+
+	return controller.stream
+}
+
+},{"streamlet":12}],20:[function(require,module,exports){
+if (document.getCSSCanvasContext) {
+	var ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300),
+		imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height),
+		pixels = imageData.data
+	for (var i = 0; i < pixels.length; i += 4) {
+		var color = Math.round(Math.random() * 255)
+		pixels[i] = pixels[i + 1] = pixels[i + 2] = color
+		pixels[i + 3] = 5
+	}
+	ctx.putImageData(imageData, 0, 0)
+}
+
+var Observable = require('streamlet')
+
+function Player(stream, props) {
+	var player = document.createElement('div')
+	player.className = 'player'
+	player.appendChild(this.video(stream, props))
+	player.appendChild(this.controls(stream))
+	return player
+}
+
+Player.prototype.video = function (stream, props) {
+	var video = document.createElement('video')
+	video.autoplay = true
+	video.srcObject = stream
+	for (var i in props) {
+		video[i] = props[i]
+	}
+	return video
+}
+
+Player.prototype.controls = function (stream) {
+	var controls = document.createElement('div')
+	controls.className = 'controls'
+
+	var audio = stream.getAudioTracks()[0]
+	var mute = document.createElement('button')
+	mute.textContent = 'A'
+	Observable.fromEvent(mute, 'click').listen(function() {
+		audio.enabled = !audio.enabled
+		mute.classList.toggle('off')
+	})
+	controls.appendChild(mute)
+
+	var video = stream.getVideoTracks()[0]
+	var black = document.createElement('button')
+	black.textContent = 'V'
+	Observable.fromEvent(black, 'click').listen(function() {
+		video.enabled = !video.enabled
+		black.classList.toggle('off')
+	})
+	controls.appendChild(black)
+
+	return controls
+}
+
+module.exports = Player
+
+},{"streamlet":12}]},{},[17]);

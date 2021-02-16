@@ -52,13 +52,15 @@ dialup.onPeers.listen(function (message) {
 })
 
 dialup.onAdd.listen(function (message) {
-	var player = new Player(message.stream, {
-		id: 'remote' + message.id
-	})
-	drop(player).listen(function (data) {
-		dialup.send(message.id, data)
-	})
-	$('#conference').appendChild(player)
+	if (!document.querySelector('#remote' + message.id)) {
+		var player = new Player(message.stream, {
+			id: 'remote' + message.id
+		})
+		drop(player).listen(function (data) {
+			dialup.send(message.id, data)
+		})
+		$('#conference').appendChild(player)
+	}
 })
 
 dialup.onData.filter(function (message) {
