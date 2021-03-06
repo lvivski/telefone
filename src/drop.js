@@ -1,7 +1,7 @@
-var Observable = require('streamlet');
+const Observable = require('streamlet')
 
 module.exports = function (element) {
-	var controller = Observable.control()
+	const controller = Observable.control()
 
 	Observable.fromEvent(element, 'dragenter').listen(function (e) {
 		e.preventDefault()

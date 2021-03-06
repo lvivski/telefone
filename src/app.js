@@ -1,9 +1,10 @@
-var Dialup = require('dialup/client'),
-	Observable = require('streamlet'),
-	Player = require('./player'),
-	drop = require('./drop'),
-	$ = require('./bootstrap'),
-	room
+const Dialup = require('dialup/client')
+const Observable = require('streamlet')
+const Player = require('./player')
+const drop = require('./drop')
+const $ = require('./bootstrap')
+
+let room
 
 if (location.pathname === '/') {
 	room = Array.apply(null, Array(20)).map(function (chars) {
@@ -20,8 +21,8 @@ if (location.pathname === '/') {
 	room = location.pathname.slice(1)
 }
 
-var dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room),
-    alone = false
+const dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room)
+let alone = false
 
 Observable.fromEvent($('#chat'), 'change')
 	.filter(function (e) { return e.target.value })
@@ -34,7 +35,7 @@ Observable.fromEvent($('#chat'), 'change')
 	})
 
 dialup.createStream(true, true).then(function (stream) {
-	var player = new Player(stream, {
+	const player = new Player(stream, {
 		muted: true
 	})
 
@@ -53,7 +54,7 @@ dialup.onPeers.listen(function (message) {
 
 dialup.onAdd.listen(function (message) {
 	if (!document.querySelector('#remote' + message.id)) {
-		var player = new Player(message.stream, {
+		const player = new Player(message.stream, {
 			id: 'remote' + message.id
 		})
 		drop(player).listen(function (data) {
@@ -66,7 +67,7 @@ dialup.onAdd.listen(function (message) {
 dialup.onData.filter(function (message) {
 	return typeof message.data === 'string'
 }).listen(function (message) {
-	var entry = document.createElement('li')
+	const entry = document.createElement('li')
 	entry.innerHTML = '<b>' + message.data + '</b>'
 	$('#log').insertBefore(entry, $('#log').firstChild)
 })
@@ -74,23 +75,23 @@ dialup.onData.filter(function (message) {
 dialup.onData.filter(function (message) {
 	return typeof message.data !== 'string'
 }).listen(function (message) {
-	var entry = document.createElement('li'),
-		url = URL.createObjectURL(new Blob([message.data]))
+	const entry = document.createElement('li')
+	const url = URL.createObjectURL(new Blob([message.data]))
 	entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
 	$('#log').insertBefore(entry, $('#log').firstChild)
 })
 
 dialup.onLeave.listen(function (message) {
-	var video = $('#remote' + message.id)
+	const video = $('#remote' + message.id)
 	if (video) {
 		URL.revokeObjectURL(video.src)
-		var player = video.parentNode
+		const player = video.parentNode
 		player.parentNode.removeChild(player)
 	}
 })
 
 function fancyName () {
-	var adjectives = [
+	const adjectives = [
 			"autumn", "hidden", "bitter", "misty", "silent", "empty", "dry", "dark",
 			"summer", "icy", "delicate", "quiet", "white", "cool", "spring", "winter",
 			"patient", "twilight", "dawn", "crimson", "wispy", "weathered", "blue",
@@ -100,8 +101,8 @@ function fancyName () {
 			"wandering", "withered", "wild", "black", "young", "holy", "solitary",
 			"fragrant", "aged", "snowy", "proud", "floral", "restless", "divine",
 			"polished", "ancient", "purple", "lively", "nameless"
-		],
-		nouns = [
+		]
+	const nouns = [
 			"waterfall", "river", "breeze", "moon", "rain", "wind", "sea", "morning",
 			"snow", "lake", "sunset", "pine", "shadow", "leaf", "dawn", "glitter",
 			"forest", "hill", "cloud", "meadow", "sun", "glade", "bird", "brook",
@@ -111,8 +112,8 @@ function fancyName () {
 			"violet", "water", "wildflower", "wave", "water", "resonance", "sun",
 			"wood", "dream", "cherry", "tree", "fog", "frost", "voice", "paper",
 			"frog", "smoke", "star"
-		],
-		rnd = Math.floor(Math.random() * Math.pow(2, 12))
+		]
+	const rnd = Math.floor(Math.random() * Math.pow(2, 12))
 
 	return  adjectives[rnd >> 6 % 64] + '-' + nouns[rnd % 64] + '-' + rnd
 }

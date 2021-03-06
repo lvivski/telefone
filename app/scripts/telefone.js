@@ -7,24 +7,21 @@ module.exports = require('./dialup');
   if (typeof global !== "Window") {
     global = window;
   }
-  var Observable, Promise, Audio;
+  var Streamlet, Overtone;
   if (typeof define === "function" && define.amd) {
-    define([ "streamlet", "davy", "overtone" ], function(streamlet, davy, overtone) {
-      Observable = streamlet;
-      Promise = davy;
-      Audio = overtone;
+    define([ "streamlet", "overtone" ], function(streamlet, overtone) {
+      Streamlet = streamlet;
+      Overtone = overtone;
       return Dialup;
     });
   } else if (typeof module === "object" && module.exports) {
     module.exports = Dialup;
-    Observable = require("streamlet");
-    Promise = require("davy");
-    Audio = require("overtone");
+    Streamlet = require("streamlet");
+    Overtone = require("overtone");
   } else {
     global.Dialup = Dialup;
-    Observable = global.Streamlet;
-    Promise = global.Davy;
-    Audio = global.Overtone;
+    Streamlet = global.Streamlet;
+    Overtone = global.Overtone;
   }
   var serversList = [ "stun.l.google.com:19302", "stun1.l.google.com:19302", "stun2.l.google.com:19302", "stun3.l.google.com:19302", "stun4.l.google.com:19302", "stun.ekiga.net", "stun.ideasip.com", "stun.rixtelecom.se", "stun.schlund.de", "stun.stunprotocol.org:3478", "stun.voiparound.com", "stun.voipbuster.com", "stun.voipstunt.com", "stun.voxgratia.org" ];
   var iceServers = serversList.reduce(function(servers, server) {
@@ -47,18 +44,12 @@ module.exports = require('./dialup');
     return servers;
   }, []);
   function trimIce(server) {
-    return server.replace(/^stun\d*\./, "").replace(/:\d+$/, "");
+    return server.replace(/^stun:stun\d*\./, "").replace(/:\d+$/, "");
   }
-  function Dialup(url, room) {
-    var me = null, sockets = [], connections = {}, data = {}, streams = [], controller = Observable.control(), stream = controller.stream, ws = new WebSocket(url);
-    var constraints = {
-      offerToReceiveAudio: true,
-      offerToReceiveVideo: true
-    };
-    var configuration = {
-      iceServers: iceServers
-    };
-    console.log(configuration);
+  function Channel(url, room) {
+    const controller = Streamlet.control();
+    const stream = controller.stream;
+    const ws = new WebSocket(url);
     ws.onopen = function() {
       send("join", {
         room: room || ""
@@ -68,164 +59,144 @@ module.exports = require('./dialup');
     ws.onmessage = function(e) {
       controller.add(JSON.parse(e.data));
     };
-    this.onOffer = stream.filter(function(message) {
-      return message.type === "offer";
-    });
-    this.onAnswer = stream.filter(function(message) {
-      return message.type === "answer";
-    });
-    this.onCandidate = stream.filter(function(message) {
-      return message.type === "candidate";
-    });
-    this.onNew = stream.filter(function(message) {
-      return message.type === "new";
-    });
-    this.onPeers = stream.filter(function(message) {
-      return message.type === "peers";
-    });
-    this.onLeave = stream.filter(function(message) {
-      return message.type === "leave";
-    });
-    this.onAdd = stream.filter(function(message) {
-      return message.type === "add";
-    });
-    this.onRemove = stream.filter(function(message) {
-      return message.type === "remove";
-    });
-    this.onData = stream.filter(function(message) {
-      return message.type === "data";
-    });
+    function send(message, data) {
+      data.type = message;
+      ws.send(JSON.stringify(data));
+    }
+    this.send = send;
+    this.onJoin = stream.filter(message => message.type === "join");
+    this.onOffer = stream.filter(message => message.type === "offer");
+    this.onAnswer = stream.filter(message => message.type === "answer");
+    this.onCandidate = stream.filter(message => message.type === "candidate");
+    this.onNew = stream.filter(message => message.type === "new");
+    this.onPeers = stream.filter(message => message.type === "peers");
+    this.onLeave = stream.filter(message => message.type === "leave");
+  }
+  const constraints = {
+    offerToReceiveAudio: true,
+    offerToReceiveVideo: true
+  };
+  const configuration = {
+    iceServers: iceServers
+  };
+  function Dialup(url, room) {
+    let me = null;
+    const channel = new Channel(url, room);
+    const clientIds = [];
+    const connections = {};
+    const data = {};
+    const streams = [];
+    const controller = Streamlet.control();
+    const stream = controller.stream;
+    this.onAdd = stream.filter(message => message.type === "add");
+    this.onData = stream.filter(message => message.type === "data");
+    this.onPeers = channel.onPeers;
+    this.onLeave = channel.onLeave;
     this.broadcast = function(message) {
-      for (var k in data) {
-        this.send(k, message);
+      for (const clientId in data) {
+        this.send(clientId, message);
       }
     };
-    this.send = function(id, message) {
-      var d = data[id];
-      if (d.readyState === "open") d.send(message);
+    this.send = function(clientId, message) {
+      const dc = data[clientId];
+      if (dc.readyState === "open") {
+        dc.send(message);
+      }
     };
     this.createStream = function(audio, video) {
-      var defer = Promise.defer();
-      navigator.mediaDevices.getUserMedia({
+      return navigator.mediaDevices.getUserMedia({
         audio: audio,
         video: video
       }).then(function(stream) {
-        Audio.filter(stream);
+        Overtone.filter(stream);
         streams.push(stream);
-        for (var i = 0; i < sockets.length; ++i) {
-          var socket = sockets[i];
-          connections[socket] = createPeerConnection(socket);
-        }
-        for (i = 0; i < streams.length; ++i) {
-          stream = streams[i];
-          for (socket in connections) {
-            var connection = connections[socket];
+        for (const id of clientIds) {
+          const connection = connections[id] = createPeerConnection(id);
+          for (const stream of streams) {
             stream.getTracks().forEach(function(track) {
               connection.addTrack(track, stream);
             });
           }
+          createDataChannel(id, connection);
+          createOffer(id, connection);
         }
-        for (socket in connections) {
-          connection = connections[socket];
-          createDataChannel(socket, connection);
-          createOffer(socket, connection);
-        }
-        defer.fulfill(stream);
+        return stream;
       });
-      return defer.promise;
     };
-    this.onPeers.listen(function(message) {
+    channel.onPeers.listen(function(message) {
       me = message.you;
-      for (var i in message.connections) {
-        var connection = message.connections[i];
-        sockets.push(connection);
+      for (const id of message.connections) {
+        clientIds.push(id);
       }
     });
-    this.onCandidate.listen(function(message) {
-      var candidate = new RTCIceCandidate({
-        sdpMLineIndex: message.label,
-        candidate: message.candidate
-      });
-      connections[message.id].addIceCandidate(candidate).catch(function(e) {
-        console.log(e);
-      });
+    channel.onCandidate.listen(function(message) {
+      const clientId = message.id;
+      connections[clientId].addIceCandidate(message.candidate);
     });
-    this.onNew.listen(function(message) {
-      var id = message.id, pc = createPeerConnection(id);
-      sockets.push(id);
-      connections[id] = pc;
+    channel.onNew.listen(function(message) {
+      const clientId = message.id;
+      const pc = createPeerConnection(clientId);
+      clientIds.push(clientId);
+      connections[clientId] = pc;
       streams.forEach(function(stream) {
         stream.getTracks().forEach(function(track) {
           pc.addTrack(track, stream);
         });
       });
     });
-    this.onLeave.listen(function(message) {
-      var id = message.id;
-      delete connections[id];
-      delete data[id];
-      sockets.splice(sockets.indexOf(id), 1);
+    channel.onLeave.listen(function(message) {
+      const clientId = message.id;
+      delete connections[clientId];
+      delete data[clientId];
+      clientIds.splice(clientIds.indexOf(clientId), 1);
     });
-    this.onOffer.listen(function(message) {
-      var pc = connections[message.id];
-      pc.setRemoteDescription(new RTCSessionDescription(message.description));
-      createAnswer(message.id, pc);
+    channel.onOffer.listen(function(message) {
+      const clientId = message.id;
+      const pc = connections[clientId];
+      pc.setRemoteDescription(message.description);
+      createAnswer(clientId, pc);
     });
-    this.onAnswer.listen(function(message) {
-      var pc = connections[message.id];
-      pc.setRemoteDescription(new RTCSessionDescription(message.description));
+    channel.onAnswer.listen(function(message) {
+      const clientId = message.id;
+      const pc = connections[clientId];
+      pc.setRemoteDescription(message.description);
     });
-    function createOffer(socket, pc) {
-      pc.createOffer(constraints).then(function(session) {
-        pc.setLocalDescription(session).then(function() {
-          send("offer", {
-            id: socket,
-            description: {
-              sdp: session.sdp,
-              type: session.type
-            }
-          });
-        });
-      }, function() {});
+    function createOffer(clientId, pc) {
+      pc.createOffer(constraints).then(offer => pc.setLocalDescription(offer)).then(() => channel.send("offer", {
+        id: clientId,
+        description: pc.localDescription
+      }), function() {});
     }
-    function createAnswer(socket, pc) {
-      pc.createAnswer().then(function(session) {
-        pc.setLocalDescription(session);
-        send("answer", {
-          id: socket,
-          description: {
-            sdp: session.sdp,
-            type: session.type
-          }
-        });
-      }, function() {});
+    function createAnswer(clientId, pc) {
+      pc.createAnswer().then(answer => pc.setLocalDescription(answer)).then(() => channel.send("answer", {
+        id: clientId,
+        description: pc.localDescription
+      }), function() {});
     }
-    function createDataChannel(id, pc, label) {
+    function createDataChannel(clientId, pc, label) {
       label || (label = "dataChannel");
-      var channel = pc.createDataChannel(label);
-      addDataChannel(id, channel);
+      const dc = pc.createDataChannel(label);
+      addDataChannel(clientId, dc);
     }
-    function addDataChannel(id, channel) {
-      channel.onopen = function() {};
-      channel.onmessage = function(e) {
+    function addDataChannel(clientId, dc) {
+      dc.onopen = function() {};
+      dc.onmessage = function(e) {
         controller.add({
+          id: clientId,
           type: "data",
-          id: id,
           data: e.data
         });
       };
-      channel.onclose = function() {};
-      data[id] = channel;
+      dc.onclose = function() {};
+      data[clientId] = dc;
     }
-    function createPeerConnection(id) {
-      console.log(configuration);
-      var pc = new RTCPeerConnection(configuration);
+    function createPeerConnection(clientId) {
+      const pc = new RTCPeerConnection(configuration);
       pc.onicecandidate = function(e) {
-        if (e.candidate != null) {
-          send("candidate", {
-            label: e.candidate.sdpMLineIndex,
-            id: id,
-            candidate: e.candidate.candidate
+        if (e.candidate && e.candidate.candidate) {
+          channel.send("candidate", {
+            id: clientId,
+            candidate: e.candidate
           });
         }
       };
@@ -246,330 +217,22 @@ module.exports = require('./dialup');
       };
       pc.ontrack = function(e) {
         controller.add({
+          id: clientId,
           type: "add",
-          id: id,
           stream: e.streams[0]
         });
       };
       pc.ondatachannel = function(e) {
-        addDataChannel(id, e.channel);
+        addDataChannel(clientId, e.channel);
       };
       return pc;
     }
-    function send(event, data) {
-      data.type = event;
-      ws.send(JSON.stringify(data));
-    }
   }
 })(this);
-},{"davy":4,"overtone":5,"streamlet":7}],3:[function(require,module,exports){
-(function(root) {
-  "use strict";
-  var nextTick;
-  if (typeof define === "function" && define.amd) {
-    define([ "subsequent" ], function(subsequent) {
-      nextTick = subsequent;
-      return Promise;
-    });
-  } else if (typeof module === "object" && module.exports) {
-    module.exports = Promise;
-    nextTick = require("subsequent");
-  } else {
-    root.Davy = Promise;
-    nextTick = root.subsequent;
-  }
-  function Promise(fn) {
-    this.value = undefined;
-    this.__deferreds__ = [];
-    if (arguments.length > 0) {
-      if (isFunction(fn)) {
-        Resolver.resolve(this, fn);
-      } else {
-        throw new TypeError("Promise constructor's argument is not a function");
-      }
-    }
-  }
-  Promise.prototype.isFulfilled = false;
-  Promise.prototype.isRejected = false;
-  Promise.prototype.then = function(onFulfilled, onRejected) {
-    var promise = new Promise(), deferred = new Deferred(promise, onFulfilled, onRejected);
-    if (this.isFulfilled || this.isRejected) {
-      Resolver.handle(this, deferred);
-    } else {
-      this.__deferreds__.push(deferred);
-    }
-    return promise;
-  };
-  function Deferred(promise, onFulfilled, onRejected) {
-    return {
-      fulfill: onFulfilled,
-      reject: onRejected,
-      promise: promise
-    };
-  }
-  function Resolver(promise) {
-    this.promise = promise;
-  }
-  Resolver.prototype.fulfill = function(value) {
-    Resolver.fulfill(this.promise, value);
-  };
-  Resolver.prototype.reject = function(error) {
-    Resolver.reject(this.promise, error);
-  };
-  Resolver.SUCCESS = "fulfill";
-  Resolver.FAILURE = "reject";
-  Resolver.fulfill = function(promise, value) {
-    if (promise.isFulfilled || promise.isRejected) return;
-    if (value === promise) {
-      Resolver.reject(promise, new TypeError("Can't resolve a promise with itself."));
-      return;
-    }
-    if (isObject(value) || isFunction(value)) {
-      var then;
-      try {
-        then = value.then;
-      } catch (e) {
-        Resolver.reject(promise, e);
-        return;
-      }
-      if (isFunction(then)) {
-        Resolver.resolve(promise, then.bind(value));
-        return;
-      }
-    }
-    promise.isFulfilled = true;
-    Resolver.complete(promise, value);
-  };
-  Resolver.reject = function(promise, error) {
-    if (promise.isFulfilled || promise.isRejected) return;
-    promise.isRejected = true;
-    Resolver.complete(promise, error);
-  };
-  Resolver.complete = function(promise, value) {
-    promise.value = value;
-    var deferreds = promise.__deferreds__;
-    if (!deferreds.length) return;
-    var i = 0;
-    while (i < deferreds.length) {
-      Resolver.handle(promise, deferreds[i++]);
-    }
-    promise.__deferreds__ = undefined;
-  };
-  Resolver.handle = function(promise, deferred) {
-    var type = promise.isFulfilled ? Resolver.SUCCESS : Resolver.FAILURE, fn = deferred[type], value = promise.value;
-    promise = deferred.promise;
-    nextTick(function() {
-      if (isFunction(fn)) {
-        var val;
-        try {
-          val = fn(value);
-        } catch (e) {
-          Resolver.reject(promise, e);
-          return;
-        }
-        Resolver.fulfill(promise, val);
-      } else {
-        Resolver[type](promise, value);
-      }
-    });
-  };
-  Resolver.resolve = function(promise, fn) {
-    var isPending = true;
-    try {
-      fn(function(val) {
-        if (isPending) {
-          isPending = false;
-          Resolver.fulfill(promise, val);
-        }
-      }, function(err) {
-        if (isPending) {
-          isPending = false;
-          Resolver.reject(promise, err);
-        }
-      });
-    } catch (e) {
-      if (isPending) {
-        Resolver.reject(promise, e);
-      }
-    }
-  };
-  Promise.prototype.progress = function(onProgress) {
-    return this.then(null, null, onProgress);
-  };
-  Promise.prototype["catch"] = function(onRejected) {
-    return this.then(null, onRejected);
-  };
-  Promise.prototype["throw"] = function() {
-    return this["catch"](function(error) {
-      nextTick(function() {
-        throw error;
-      });
-    });
-  };
-  Promise.prototype["finally"] = function(onResolved) {
-    return this.then(onResolved, onResolved);
-  };
-  Promise.prototype["yield"] = function(value) {
-    return this.then(function() {
-      return value;
-    });
-  };
-  Promise.prototype.tap = function(onFulfilled) {
-    return this.then(onFulfilled)["yield"](this);
-  };
-  Promise.prototype.spread = function(onFulfilled, onRejected) {
-    return this.then(function(val) {
-      return onFulfilled.apply(this, val);
-    }, onRejected);
-  };
-  Promise.resolve = Promise.cast = function(val) {
-    if (isLikePromise(val)) {
-      return val;
-    }
-    return new Promise(val);
-  };
-  Promise.reject = function(err) {
-    var resolver = Promise.defer();
-    resolver.reject(err);
-    return resolver.promise;
-  };
-  Promise.defer = function() {
-    return new Resolver(new Promise());
-  };
-  Promise.each = function(list, iterator) {
-    var resolver = Promise.defer(), len = list.length;
-    if (len === 0) resolver.fulfill(TypeError());
-    var i = 0;
-    while (i < len) {
-      iterator(list[i], i++, list);
-    }
-    return resolver;
-  };
-  Promise.all = function() {
-    var list = parse(arguments), length = list.length, resolver = Promise.each(list, resolve);
-    return resolver.promise;
-    function reject(err) {
-      resolver.reject(err);
-    }
-    function resolve(value, i, list) {
-      if (isLikePromise(value)) {
-        value.then(function(val) {
-          resolve(val, i, list);
-        }, reject);
-        return;
-      }
-      list[i] = value;
-      if (--length === 0) {
-        resolver.fulfill(list);
-      }
-    }
-  };
-  Promise.race = function() {
-    var list = parse(arguments), resolver = Promise.each(list, resolve);
-    return resolver.promise;
-    function reject(err) {
-      resolver.reject(err);
-    }
-    function resolve(value) {
-      if (isLikePromise(value)) {
-        value.then(resolve, reject);
-        return;
-      }
-      resolver.fulfill(value);
-    }
-  };
-  Promise.wrap = function(fn) {
-    var resolver = Promise.defer();
-    function callback(err, val) {
-      if (err) {
-        resolver.reject(err);
-      } else {
-        resolver.fulfill(val);
-      }
-    }
-    return function() {
-      var len = arguments.length, args = new Array(len), i = 0;
-      while (i < len) {
-        args[i] = arguments[i++];
-      }
-      try {
-        switch (len) {
-         case 2:
-          fn.call(this, args[0], args[1], callback);
-          break;
-
-         case 1:
-          fn.call(this, args[0], callback);
-          break;
-
-         case 0:
-          fn.call(this, callback);
-          break;
-
-         default:
-          args.push(callback);
-          fn.apply(this, args);
-        }
-      } catch (e) {
-        resolver.reject(e);
-      }
-      return resolver.promise;
-    };
-  };
-  Promise.traverse = function(tree, path) {
-    function visit(node, depth) {
-      return Promise.resolve(node).then(function(node) {
-        if (!isObject(node) || isEmpty(node)) {
-          return node;
-        }
-        var isArray = Array.isArray(node), result = isArray ? [] : {}, promises = Object.keys(node).map(function(key) {
-          if (path && path[depth] !== key) {
-            return Promise.resolve();
-          }
-          var value = node[key];
-          if (isArray) {
-            key = result.length;
-          }
-          result[key] = null;
-          return visit(value, depth + 1).then(function(unwrapped) {
-            result[key] = unwrapped;
-          });
-        });
-        return Promise.all(promises).yield(result);
-      });
-    }
-    return visit(tree, 0);
-  };
-  function isObject(obj) {
-    return obj && typeof obj === "object";
-  }
-  function isFunction(fn) {
-    return fn && typeof fn === "function";
-  }
-  function isEmpty(obj) {
-    return Object.keys(obj).length === 0;
-  }
-  function isLikePromise(obj) {
-    return isObject(obj) && isFunction(obj.then);
-  }
-  function parse(obj) {
-    if (obj.length === 1 && Array.isArray(obj[0])) {
-      return obj[0];
-    } else {
-      var args = new Array(obj.length), i = 0;
-      while (i < args.length) {
-        args[i] = obj[i++];
-      }
-      return args;
-    }
-  }
-})(Function("return this")());
-},{"subsequent":9}],4:[function(require,module,exports){
-module.exports = require('./davy.js')
-},{"./davy.js":3}],5:[function(require,module,exports){
+},{"overtone":3,"streamlet":5}],3:[function(require,module,exports){
 module.exports = require('./overtone.js')
 
-},{"./overtone.js":6}],6:[function(require,module,exports){
+},{"./overtone.js":4}],4:[function(require,module,exports){
 (function(global) {
   "use strict";
   if (typeof define === "function" && define.amd) {
@@ -599,9 +262,9 @@ module.exports = require('./overtone.js')
   }
   var AudioContext = global.AudioContext || global.mozAudioContext, MediaStream = global.MediaStream || global.webkitMediaStream || global.mozMediaStream;
 })(this);
-},{}],7:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 module.exports = require('./streamlet.js')
-},{"./streamlet.js":8}],8:[function(require,module,exports){
+},{"./streamlet.js":6}],6:[function(require,module,exports){
 (function(root) {
   "use strict";
   var nextTick;
@@ -871,9 +534,9 @@ module.exports = require('./streamlet.js')
     });
   }
 })(Function("return this")());
-},{"subsequent":9}],9:[function(require,module,exports){
+},{"subsequent":7}],7:[function(require,module,exports){
 module.exports = require('./subsequent.js')
-},{"./subsequent.js":10}],10:[function(require,module,exports){
+},{"./subsequent.js":8}],8:[function(require,module,exports){
 (function (process,setImmediate){(function (){
 (function(root) {
   "use strict";
@@ -976,7 +639,7 @@ module.exports = require('./subsequent.js')
   }
 })(Function("return this")());
 }).call(this)}).call(this,require('_process'),require("timers").setImmediate)
-},{"_process":11,"timers":16}],11:[function(require,module,exports){
+},{"_process":9,"timers":14}],9:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -1162,15 +825,15 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],12:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
+arguments[4][5][0].apply(exports,arguments)
+},{"./streamlet.js":11,"dup":5}],11:[function(require,module,exports){
+arguments[4][6][0].apply(exports,arguments)
+},{"dup":6,"subsequent":12}],12:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"./streamlet.js":13,"dup":7}],13:[function(require,module,exports){
+},{"./subsequent.js":13,"dup":7}],13:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"subsequent":14}],14:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"./subsequent.js":15,"dup":9}],15:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"_process":11,"dup":10,"timers":16}],16:[function(require,module,exports){
+},{"_process":9,"dup":8,"timers":14}],14:[function(require,module,exports){
 (function (setImmediate,clearImmediate){(function (){
 var nextTick = require('process/browser.js').nextTick;
 var apply = Function.prototype.apply;
@@ -1249,13 +912,14 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this)}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":11,"timers":16}],17:[function(require,module,exports){
-var Dialup = require('dialup/client'),
-	Observable = require('streamlet'),
-	Player = require('./player'),
-	drop = require('./drop'),
-	$ = require('./bootstrap'),
-	room
+},{"process/browser.js":9,"timers":14}],15:[function(require,module,exports){
+const Dialup = require('dialup/client')
+const Observable = require('streamlet')
+const Player = require('./player')
+const drop = require('./drop')
+const $ = require('./bootstrap')
+
+let room
 
 if (location.pathname === '/') {
 	room = Array.apply(null, Array(20)).map(function (chars) {
@@ -1272,8 +936,8 @@ if (location.pathname === '/') {
 	room = location.pathname.slice(1)
 }
 
-var dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room),
-    alone = false
+const dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room)
+let alone = false
 
 Observable.fromEvent($('#chat'), 'change')
 	.filter(function (e) { return e.target.value })
@@ -1286,7 +950,7 @@ Observable.fromEvent($('#chat'), 'change')
 	})
 
 dialup.createStream(true, true).then(function (stream) {
-	var player = new Player(stream, {
+	const player = new Player(stream, {
 		muted: true
 	})
 
@@ -1305,7 +969,7 @@ dialup.onPeers.listen(function (message) {
 
 dialup.onAdd.listen(function (message) {
 	if (!document.querySelector('#remote' + message.id)) {
-		var player = new Player(message.stream, {
+		const player = new Player(message.stream, {
 			id: 'remote' + message.id
 		})
 		drop(player).listen(function (data) {
@@ -1318,7 +982,7 @@ dialup.onAdd.listen(function (message) {
 dialup.onData.filter(function (message) {
 	return typeof message.data === 'string'
 }).listen(function (message) {
-	var entry = document.createElement('li')
+	const entry = document.createElement('li')
 	entry.innerHTML = '<b>' + message.data + '</b>'
 	$('#log').insertBefore(entry, $('#log').firstChild)
 })
@@ -1326,23 +990,23 @@ dialup.onData.filter(function (message) {
 dialup.onData.filter(function (message) {
 	return typeof message.data !== 'string'
 }).listen(function (message) {
-	var entry = document.createElement('li'),
-		url = URL.createObjectURL(new Blob([message.data]))
+	const entry = document.createElement('li')
+	const url = URL.createObjectURL(new Blob([message.data]))
 	entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
 	$('#log').insertBefore(entry, $('#log').firstChild)
 })
 
 dialup.onLeave.listen(function (message) {
-	var video = $('#remote' + message.id)
+	const video = $('#remote' + message.id)
 	if (video) {
 		URL.revokeObjectURL(video.src)
-		var player = video.parentNode
+		const player = video.parentNode
 		player.parentNode.removeChild(player)
 	}
 })
 
 function fancyName () {
-	var adjectives = [
+	const adjectives = [
 			"autumn", "hidden", "bitter", "misty", "silent", "empty", "dry", "dark",
 			"summer", "icy", "delicate", "quiet", "white", "cool", "spring", "winter",
 			"patient", "twilight", "dawn", "crimson", "wispy", "weathered", "blue",
@@ -1352,8 +1016,8 @@ function fancyName () {
 			"wandering", "withered", "wild", "black", "young", "holy", "solitary",
 			"fragrant", "aged", "snowy", "proud", "floral", "restless", "divine",
 			"polished", "ancient", "purple", "lively", "nameless"
-		],
-		nouns = [
+		]
+	const nouns = [
 			"waterfall", "river", "breeze", "moon", "rain", "wind", "sea", "morning",
 			"snow", "lake", "sunset", "pine", "shadow", "leaf", "dawn", "glitter",
 			"forest", "hill", "cloud", "meadow", "sun", "glade", "bird", "brook",
@@ -1363,15 +1027,15 @@ function fancyName () {
 			"violet", "water", "wildflower", "wave", "water", "resonance", "sun",
 			"wood", "dream", "cherry", "tree", "fog", "frost", "voice", "paper",
 			"frog", "smoke", "star"
-		],
-		rnd = Math.floor(Math.random() * Math.pow(2, 12))
+		]
+	const rnd = Math.floor(Math.random() * Math.pow(2, 12))
 
 	return  adjectives[rnd >> 6 % 64] + '-' + nouns[rnd % 64] + '-' + rnd
 }
 
-},{"./bootstrap":18,"./drop":19,"./player":20,"dialup/client":1,"streamlet":12}],18:[function(require,module,exports){
+},{"./bootstrap":16,"./drop":17,"./player":18,"dialup/client":1,"streamlet":10}],16:[function(require,module,exports){
 module.exports = function $(selector, context) {
-  var result = (context || document).querySelectorAll(selector)
+  const result = (context || document).querySelectorAll(selector)
   return result.length > 1 ? result : result[0]
 }
 
@@ -1380,11 +1044,11 @@ NodeList.prototype.forEach = [].forEach
 
 NodeList.prototype.filter = [].filter
 
-},{}],19:[function(require,module,exports){
-var Observable = require('streamlet');
+},{}],17:[function(require,module,exports){
+const Observable = require('streamlet')
 
 module.exports = function (element) {
-	var controller = Observable.control()
+	const controller = Observable.control()
 
 	Observable.fromEvent(element, 'dragenter').listen(function (e) {
 		e.preventDefault()
@@ -1417,23 +1081,23 @@ module.exports = function (element) {
 	return controller.stream
 }
 
-},{"streamlet":12}],20:[function(require,module,exports){
+},{"streamlet":10}],18:[function(require,module,exports){
 if (document.getCSSCanvasContext) {
-	var ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300),
-		imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height),
-		pixels = imageData.data
-	for (var i = 0; i < pixels.length; i += 4) {
-		var color = Math.round(Math.random() * 255)
+	const ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300)
+	const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
+	const pixels = imageData.data
+	for (let i = 0; i < pixels.length; i += 4) {
+		const color = Math.round(Math.random() * 255)
 		pixels[i] = pixels[i + 1] = pixels[i + 2] = color
 		pixels[i + 3] = 5
 	}
 	ctx.putImageData(imageData, 0, 0)
 }
 
-var Observable = require('streamlet')
+const Observable = require('streamlet')
 
 function Player(stream, props) {
-	var player = document.createElement('div')
+	const player = document.createElement('div')
 	player.className = 'player'
 	player.appendChild(this.video(stream, props))
 	player.appendChild(this.controls(stream))
@@ -1441,7 +1105,7 @@ function Player(stream, props) {
 }
 
 Player.prototype.video = function (stream, props) {
-	var video = document.createElement('video')
+	const video = document.createElement('video')
 	video.autoplay = true
 	video.srcObject = stream
 	for (var i in props) {
@@ -1451,11 +1115,11 @@ Player.prototype.video = function (stream, props) {
 }
 
 Player.prototype.controls = function (stream) {
-	var controls = document.createElement('div')
+	const controls = document.createElement('div')
 	controls.className = 'controls'
 
-	var audio = stream.getAudioTracks()[0]
-	var mute = document.createElement('button')
+	const audio = stream.getAudioTracks()[0]
+	const mute = document.createElement('button')
 	mute.textContent = 'A'
 	Observable.fromEvent(mute, 'click').listen(function() {
 		audio.enabled = !audio.enabled
@@ -1463,8 +1127,8 @@ Player.prototype.controls = function (stream) {
 	})
 	controls.appendChild(mute)
 
-	var video = stream.getVideoTracks()[0]
-	var black = document.createElement('button')
+	const video = stream.getVideoTracks()[0]
+	const black = document.createElement('button')
 	black.textContent = 'V'
 	Observable.fromEvent(black, 'click').listen(function() {
 		video.enabled = !video.enabled
@@ -1477,4 +1141,4 @@ Player.prototype.controls = function (stream) {
 
 module.exports = Player
 
-},{"streamlet":12}]},{},[17]);
+},{"streamlet":10}]},{},[15]);

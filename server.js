@@ -1,17 +1,17 @@
-'use strict';
+'use strict'
 
-var express = require('express'),
-	compress = require('compression')(),
-	st = require('serve-static'),
-    http = require('http'),
-    Dialup = require('dialup')
+const express = require('express')
+const compress = require('compression')()
+const st = require('serve-static')
+const http = require('http')
+const Dialup = require('dialup')
 
-var app = express(),
-    server = http.createServer(app),
-    dialup = new Dialup({server: server}),
-    dir = __dirname + '/',
-    port = process.env.PORT || 8080,
-    host = process.env.HOST || '0.0.0.0'
+const app = express()
+const server = http.createServer(app)
+const dialup = new Dialup({server: server})
+const dir = __dirname + '/'
+const port = process.env.PORT || 8080
+const host = process.env.HOST || '0.0.0.0'
 
 app.use(compress)
 app.use(st(dir + 'app'))

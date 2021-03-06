@@ -1,19 +1,19 @@
 if (document.getCSSCanvasContext) {
-	var ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300),
-		imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height),
-		pixels = imageData.data
-	for (var i = 0; i < pixels.length; i += 4) {
-		var color = Math.round(Math.random() * 255)
+	const ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300)
+	const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
+	const pixels = imageData.data
+	for (let i = 0; i < pixels.length; i += 4) {
+		const color = Math.round(Math.random() * 255)
 		pixels[i] = pixels[i + 1] = pixels[i + 2] = color
 		pixels[i + 3] = 5
 	}
 	ctx.putImageData(imageData, 0, 0)
 }
 
-var Observable = require('streamlet')
+const Observable = require('streamlet')
 
 function Player(stream, props) {
-	var player = document.createElement('div')
+	const player = document.createElement('div')
 	player.className = 'player'
 	player.appendChild(this.video(stream, props))
 	player.appendChild(this.controls(stream))
@@ -21,7 +21,7 @@ function Player(stream, props) {
 }
 
 Player.prototype.video = function (stream, props) {
-	var video = document.createElement('video')
+	const video = document.createElement('video')
 	video.autoplay = true
 	video.srcObject = stream
 	for (var i in props) {
@@ -31,11 +31,11 @@ Player.prototype.video = function (stream, props) {
 }
 
 Player.prototype.controls = function (stream) {
-	var controls = document.createElement('div')
+	const controls = document.createElement('div')
 	controls.className = 'controls'
 
-	var audio = stream.getAudioTracks()[0]
-	var mute = document.createElement('button')
+	const audio = stream.getAudioTracks()[0]
+	const mute = document.createElement('button')
 	mute.textContent = 'A'
 	Observable.fromEvent(mute, 'click').listen(function() {
 		audio.enabled = !audio.enabled
@@ -43,8 +43,8 @@ Player.prototype.controls = function (stream) {
 	})
 	controls.appendChild(mute)
 
-	var video = stream.getVideoTracks()[0]
-	var black = document.createElement('button')
+	const video = stream.getVideoTracks()[0]
+	const black = document.createElement('button')
 	black.textContent = 'V'
 	Observable.fromEvent(black, 'click').listen(function() {
 		video.enabled = !video.enabled
