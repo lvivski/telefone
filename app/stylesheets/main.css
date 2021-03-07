@@ -1,7 +1,11 @@
+:root {
+	--background-color: #FEFEFE;
+}
+
 html {
   height: 100%;
   font: 62.5%/1.5 Helvetica, Arial, sans-serif;
-  background: #FEFEFE;
+  background: var(--background-color);
 }
 
 body {
@@ -15,7 +19,6 @@ body {
 
 input, li, button {
 	font-size: 1.5em;
-	font-family: Helvetica, Arial, sans-serif;
 }
 
 video {
@@ -32,11 +35,42 @@ ul {
 	margin: 0;
 }
 
-#conference {
+#app {
+	flex-direction: row;
+	align-content: stretch;
+}
+
+#conference, #chat {
+	flex-direction: column;
+}
+
+#app, #conference, #chat {
+	display: flex;
+	flex: 1;
+	height: 100%;
+}
+
+#chat {
+	width: 30%;
+	flex-grow: 0;
+	flex-shrink: 0;
+}
+
+#faces, #screens {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
-	background: -webkit-canvas(noise), #736F6E;
+}
+
+#input {
+	margin: 10px;
+}
+
+#scroll {
+	display: flex;
+	flex: 1 1 auto;
+	overflow: scroll;
+	flex-direction: column-reverse;
 }
 
 .player {
@@ -51,28 +85,6 @@ ul {
 
 .player, #log {
 	padding: 10px;
-}
-#chat {
-	margin: 10px;
-}
-
-#conference, #chat {
-	flex: 0 0 auto;
-}
-#log {
-	flex: 1 1 auto;
-	overflow: scroll;
-
-	background:
-		linear-gradient(white 30%, rgba(255,255,255,0)),
-		linear-gradient(rgba(255,255,255,0), white 70%) 0 100%,
-
-		radial-gradient(farthest-side at 50% 0, rgba(0,0,0,.2), rgba(0,0,0,0)),
-		radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.2), rgba(0,0,0,0)) 0 100%;
-	background-repeat: no-repeat;
-	background-color: white;
-	background-size: 100% 40px, 100% 40px, 100% 14px, 100% 14px;
-	background-attachment: local, local, scroll, scroll;
 }
 
 .controls {

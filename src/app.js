@@ -7,11 +7,7 @@ const $ = require('./bootstrap')
 let room
 
 if (location.pathname === '/') {
-	room = Array.apply(null, Array(20)).map(function (chars) {
-			return function () {
-				return chars.charAt(Math.floor(Math.random() * chars.length))
-			}
-		}('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')).join('')
+	room = fancyName()
 
 	history.pushState(null, '', room)
 	Observable.fromEvent(window, 'popstate').listen(function (e) {
@@ -22,45 +18,83 @@ if (location.pathname === '/') {
 }
 
 const dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room)
-let alone = false
 
-Observable.fromEvent($('#chat'), 'change')
+
+dialup.onPeers.listen(function (message) {
+	if (message.connections.length === 0) {
+		prompt('You are alone here, send this URL to your friends', location)
+	}
+
+	dialup.getUserStream(true, true).then(function (stream) {
+		const player = new Player(stream, {
+			local: true,
+			toggleScreenShare: function toggleScreenShare() {
+				if (toggleScreenShare.promise) {
+					const promise = toggleScreenShare.promise
+					toggleScreenShare.promise = null
+					return promise.then((stream) => {
+						dialup.stopStream(stream)
+						throw new Error('sharing disabled')
+					})
+				} else {
+					return toggleScreenShare.promise = dialup.getDisplayStream()
+				}
+			}
+		})
+
+		$('#faces').insertBefore(player, $('#faces').firstChild)
+	})
+})
+
+Observable.fromEvent($('#input'), 'change')
 	.filter(function (e) { return e.target.value })
 	.listen(function (e) {
 		dialup.broadcast(e.target.value)
 		var entry = document.createElement('li')
 		entry.innerHTML = e.target.value
-		$('#log').insertBefore(entry, $('#log').firstChild)
+		$('#log').appendChild(entry)
 		e.target.value = ''
 	})
 
-dialup.createStream(true, true).then(function (stream) {
-	const player = new Player(stream, {
-		muted: true
-	})
+dialup.onAdd.listen(function (message) {
+	const streamId = message.stream.id.replace('{', '').replace('}', '')
+	if (!$('[data-stream="' + streamId + '"]')) {
+		if (!$('[data-client="' + message.id + '"]')) {
+			const player = new Player(message.stream, {
+				props: {
+					'data-client': message.id,
+					'data-stream': streamId
+				}
+			})
+			drop(player).listen(function (data) {
+				dialup.send(message.id, data)
+			})
+			$('#faces').appendChild(player)
+		} else {
+			const player = new Player(message.stream, {
+				props: {
+					'data-client': message.id,
+					'data-stream': streamId
+				}
+			})
+			$('#screens').appendChild(player)
+		}
 
-	$('#conference').appendChild(player)
-
-	setTimeout(function(){
-		alone && prompt('You are alone here, send this URL to your friends', location)
-	}, 0)
-})
-
-dialup.onPeers.listen(function (message) {
-	if (message.connections.length === 0) {
-		alone = true
 	}
 })
 
-dialup.onAdd.listen(function (message) {
-	if (!document.querySelector('#remote' + message.id)) {
-		const player = new Player(message.stream, {
-			id: 'remote' + message.id
+dialup.onLeave.listen(function (message) {
+	const video = $('[data-client="' + message.id + '"]')
+	if (video.length > 0) {
+		video.forEach(v => {
+			URL.revokeObjectURL(v.src)
+			const player = v.parentNode
+			player.parentNode.removeChild(player)
 		})
-		drop(player).listen(function (data) {
-			dialup.send(message.id, data)
-		})
-		$('#conference').appendChild(player)
+	} else {
+		URL.revokeObjectURL(video.src)
+		const player = video.parentNode
+		player.parentNode.removeChild(player)
 	}
 })
 
@@ -81,16 +115,7 @@ dialup.onData.filter(function (message) {
 	$('#log').insertBefore(entry, $('#log').firstChild)
 })
 
-dialup.onLeave.listen(function (message) {
-	const video = $('#remote' + message.id)
-	if (video) {
-		URL.revokeObjectURL(video.src)
-		const player = video.parentNode
-		player.parentNode.removeChild(player)
-	}
-})
-
-function fancyName () {
+function fancyName() {
 	const adjectives = [
 			"autumn", "hidden", "bitter", "misty", "silent", "empty", "dry", "dark",
 			"summer", "icy", "delicate", "quiet", "white", "cool", "spring", "winter",

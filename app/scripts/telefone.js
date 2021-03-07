@@ -23,10 +23,10 @@ module.exports = require('./dialup');
     Streamlet = global.Streamlet;
     Overtone = global.Overtone;
   }
-  var serversList = [ "stun.l.google.com:19302", "stun1.l.google.com:19302", "stun2.l.google.com:19302", "stun3.l.google.com:19302", "stun4.l.google.com:19302", "stun.ekiga.net", "stun.ideasip.com", "stun.rixtelecom.se", "stun.schlund.de", "stun.stunprotocol.org:3478", "stun.voiparound.com", "stun.voipbuster.com", "stun.voipstunt.com", "stun.voxgratia.org" ];
+  var serversList = [ "stun.l.google.com:19302" ];
   var iceServers = serversList.reduce(function(servers, server) {
-    var lastEntry = servers[servers.length - 1];
     server = "stun:" + server;
+    var lastEntry = servers[servers.length - 1];
     if (lastEntry) {
       var lastServer = lastEntry.urls[0];
       if (trimIce(lastServer) === trimIce(server)) {
@@ -67,15 +67,11 @@ module.exports = require('./dialup');
     this.onJoin = stream.filter(message => message.type === "join");
     this.onOffer = stream.filter(message => message.type === "offer");
     this.onAnswer = stream.filter(message => message.type === "answer");
-    this.onCandidate = stream.filter(message => message.type === "candidate");
-    this.onNew = stream.filter(message => message.type === "new");
     this.onPeers = stream.filter(message => message.type === "peers");
+    this.onNew = stream.filter(message => message.type === "new");
+    this.onCandidate = stream.filter(message => message.type === "candidate");
     this.onLeave = stream.filter(message => message.type === "leave");
   }
-  const constraints = {
-    offerToReceiveAudio: true,
-    offerToReceiveVideo: true
-  };
   const configuration = {
     iceServers: iceServers
   };
@@ -83,9 +79,9 @@ module.exports = require('./dialup');
     let me = null;
     const channel = new Channel(url, room);
     const clientIds = [];
-    const connections = {};
-    const data = {};
     const streams = [];
+    const peerConnections = {};
+    const dataChannels = {};
     const controller = Streamlet.control();
     const stream = controller.stream;
     this.onAdd = stream.filter(message => message.type === "add");
@@ -93,88 +89,108 @@ module.exports = require('./dialup');
     this.onPeers = channel.onPeers;
     this.onLeave = channel.onLeave;
     this.broadcast = function(message) {
-      for (const clientId in data) {
+      for (const clientId in dataChannels) {
         this.send(clientId, message);
       }
     };
     this.send = function(clientId, message) {
-      const dc = data[clientId];
+      const dc = dataChannels[clientId];
       if (dc.readyState === "open") {
         dc.send(message);
       }
     };
-    this.createStream = function(audio, video) {
-      return navigator.mediaDevices.getUserMedia({
+    this.getUserStream = async function(audio, video) {
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: audio,
-        video: video
-      }).then(function(stream) {
-        Overtone.filter(stream);
-        streams.push(stream);
-        for (const id of clientIds) {
-          const connection = connections[id] = createPeerConnection(id);
-          for (const stream of streams) {
-            stream.getTracks().forEach(function(track) {
-              connection.addTrack(track, stream);
-            });
-          }
-          createDataChannel(id, connection);
-          createOffer(id, connection);
-        }
-        return stream;
+        video: video ? {
+          facingMode: "user"
+        } : false
       });
+      streams.push(stream);
+      Overtone.filter(stream);
+      for (const clientId of clientIds) {
+        addTracks(clientId, stream);
+      }
+      return stream;
+    };
+    this.getDisplayStream = async function() {
+      const stream = await navigator.mediaDevices.getDisplayMedia();
+      streams.push(stream);
+      for (const clientId of clientIds) {
+        addTracks(clientId, stream);
+      }
+      return stream;
+    };
+    this.stopStream = function(stream) {
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
     };
     channel.onPeers.listen(function(message) {
       me = message.you;
-      for (const id of message.connections) {
-        clientIds.push(id);
+      for (const clientId of message.connections) {
+        clientIds.push(clientId);
+        createPeerConnection(clientId);
+        createDataChannel(clientId);
       }
-    });
-    channel.onCandidate.listen(function(message) {
-      const clientId = message.id;
-      connections[clientId].addIceCandidate(message.candidate);
     });
     channel.onNew.listen(function(message) {
       const clientId = message.id;
-      const pc = createPeerConnection(clientId);
       clientIds.push(clientId);
-      connections[clientId] = pc;
-      streams.forEach(function(stream) {
-        stream.getTracks().forEach(function(track) {
-          pc.addTrack(track, stream);
-        });
-      });
+      createPeerConnection(clientId);
+    });
+    channel.onCandidate.listen(function(message) {
+      const clientId = message.id;
+      const pc = peerConnections[clientId];
+      pc.addIceCandidate(message.candidate);
     });
     channel.onLeave.listen(function(message) {
       const clientId = message.id;
-      delete connections[clientId];
-      delete data[clientId];
+      delete peerConnections[clientId];
+      delete dataChannels[clientId];
       clientIds.splice(clientIds.indexOf(clientId), 1);
     });
-    channel.onOffer.listen(function(message) {
+    channel.onOffer.listen(async function(message) {
       const clientId = message.id;
-      const pc = connections[clientId];
-      pc.setRemoteDescription(message.description);
-      createAnswer(clientId, pc);
+      const pc = peerConnections[clientId];
+      await pc.setRemoteDescription(message.description);
+      if (pc.iceConnectionState === "new") {
+        for (const stream of streams) {
+          addTracks(clientId, stream);
+        }
+      }
+      await createAnswer(clientId);
     });
-    channel.onAnswer.listen(function(message) {
+    channel.onAnswer.listen(async function(message) {
       const clientId = message.id;
-      const pc = connections[clientId];
-      pc.setRemoteDescription(message.description);
+      const pc = peerConnections[clientId];
+      await pc.setRemoteDescription(message.description);
     });
-    function createOffer(clientId, pc) {
-      pc.createOffer(constraints).then(offer => pc.setLocalDescription(offer)).then(() => channel.send("offer", {
+    function addTracks(clientId, stream) {
+      const pc = peerConnections[clientId];
+      for (const track of stream.getTracks()) {
+        pc.addTrack(track, stream);
+      }
+    }
+    async function createOffer(clientId) {
+      const pc = peerConnections[clientId];
+      await pc.setLocalDescription(await pc.createOffer());
+      channel.send("offer", {
         id: clientId,
         description: pc.localDescription
-      }), function() {});
+      });
     }
-    function createAnswer(clientId, pc) {
-      pc.createAnswer().then(answer => pc.setLocalDescription(answer)).then(() => channel.send("answer", {
+    async function createAnswer(clientId) {
+      const pc = peerConnections[clientId];
+      await pc.setLocalDescription(await pc.createAnswer());
+      channel.send("answer", {
         id: clientId,
         description: pc.localDescription
-      }), function() {});
+      });
     }
-    function createDataChannel(clientId, pc, label) {
+    function createDataChannel(clientId, label) {
       label || (label = "dataChannel");
+      const pc = peerConnections[clientId];
       const dc = pc.createDataChannel(label);
       addDataChannel(clientId, dc);
     }
@@ -188,10 +204,11 @@ module.exports = require('./dialup');
         });
       };
       dc.onclose = function() {};
-      data[clientId] = dc;
+      dataChannels[clientId] = dc;
     }
     function createPeerConnection(clientId) {
       const pc = new RTCPeerConnection(configuration);
+      peerConnections[clientId] = pc;
       pc.onicecandidate = function(e) {
         if (e.candidate && e.candidate.candidate) {
           channel.send("candidate", {
@@ -203,6 +220,8 @@ module.exports = require('./dialup');
       pc.oniceconnectionstatechange = function() {
         switch (pc.iceConnectionState) {
          case "disconnected":
+          break;
+
          case "failed":
           pc.close();
           break;
@@ -214,6 +233,9 @@ module.exports = require('./dialup');
       };
       pc.onicecandidateerror = function(e) {
         console.log(e);
+      };
+      pc.onnegotiationneeded = function() {
+        createOffer(clientId);
       };
       pc.ontrack = function(e) {
         controller.add({
@@ -229,42 +251,114 @@ module.exports = require('./dialup');
     }
   }
 })(this);
-},{"overtone":3,"streamlet":5}],3:[function(require,module,exports){
-module.exports = require('./overtone.js')
-
-},{"./overtone.js":4}],4:[function(require,module,exports){
-(function(global) {
+},{"overtone":13,"streamlet":3}],3:[function(require,module,exports){
+module.exports = require('./streamlet.js')
+},{"./streamlet.js":6}],4:[function(require,module,exports){
+module.exports = require('./subsequent.js')
+},{"./subsequent.js":5}],5:[function(require,module,exports){
+(function (process,setImmediate){(function (){
+(function(root) {
   "use strict";
+  var nextTick = function(nextTick, buffer, length, tick) {
+    buffer = new Array(1e4);
+    length = 0;
+    function enqueue(fn) {
+      if (length === buffer.length) {
+        length = buffer.push(fn);
+      } else {
+        buffer[length++] = fn;
+      }
+      if (!tick) {
+        return tick = true;
+      }
+    }
+    function execute() {
+      var i = 0;
+      while (i < length) {
+        buffer[i]();
+        buffer[i++] = undefined;
+      }
+      length = 0;
+      tick = false;
+    }
+    if (typeof setImmediate === "function") {
+      return function(fn) {
+        enqueue(fn) && setImmediate(execute);
+      };
+    }
+    if (typeof process === "object" && process.nextTick) {
+      return function(fn) {
+        enqueue(fn) && process.nextTick(execute);
+      };
+    }
+    var MutationObserver = root.MutationObserver;
+    if (typeof MutationObserver !== "undefined") {
+      var val = 1, node = root.document.createTextNode("");
+      new MutationObserver(execute).observe(node, {
+        characterData: true
+      });
+      return function(fn) {
+        enqueue(fn) && (node.data = val *= -1);
+      };
+    }
+    if (root.postMessage) {
+      var isPostMessageAsync = true;
+      if (root.attachEvent) {
+        var checkAsync = function() {
+          isPostMessageAsync = false;
+        };
+        root.attachEvent("onmessage", checkAsync);
+        root.postMessage("__check", "*");
+        root.detachEvent("onmessage", checkAsync);
+      }
+      if (isPostMessageAsync) {
+        var message = "__subsequent", onMessage = function(e) {
+          if (e.data === message) {
+            e.stopPropagation && e.stopPropagation();
+            execute();
+          }
+        };
+        if (root.addEventListener) {
+          root.addEventListener("message", onMessage, true);
+        } else {
+          root.attachEvent("onmessage", onMessage);
+        }
+        return function(fn) {
+          enqueue(fn) && root.postMessage(message, "*");
+        };
+      }
+    }
+    var document = root.document;
+    if ("onreadystatechange" in document.createElement("script")) {
+      var createScript = function() {
+        var script = document.createElement("script");
+        script.onreadystatechange = function() {
+          script.parentNode.removeChild(script);
+          script = script.onreadystatechange = null;
+          execute();
+        };
+        (document.documentElement || document.body).appendChild(script);
+      };
+      return function(fn) {
+        enqueue(fn) && createScript();
+      };
+    }
+    return function(fn) {
+      enqueue(fn) && setTimeout(execute, 0);
+    };
+  }();
   if (typeof define === "function" && define.amd) {
     define(function() {
-      return Audio;
+      return nextTick;
     });
   } else if (typeof module === "object" && module.exports) {
-    module.exports = Audio;
+    module.exports = nextTick;
   } else {
-    global.Overtone = Audio;
+    root.subsequent = nextTick;
   }
-  function Audio() {}
-  Audio.filter = function(stream) {
-    if (AudioContext && MediaStream && MediaStream.prototype.removeTrack) {
-      var context = new AudioContext(), source = context.createMediaStreamSource(stream), filter = context.createBiquadFilter(), destination = context.createMediaStreamDestination();
-      filter.type = filter.LOWPASS;
-      filter.Q.value = 0;
-      filter.frequency.value = 2e3;
-      source.connect(filter);
-      filter.connect(destination);
-      stream.removeTrack(stream.getAudioTracks()[0]);
-      stream.addTrack(destination.stream.getAudioTracks()[0]);
-    }
-  };
-  if (typeof global !== "Window") {
-    global = window;
-  }
-  var AudioContext = global.AudioContext || global.mozAudioContext, MediaStream = global.MediaStream || global.webkitMediaStream || global.mozMediaStream;
-})(this);
-},{}],5:[function(require,module,exports){
-module.exports = require('./streamlet.js')
-},{"./streamlet.js":6}],6:[function(require,module,exports){
+})(Function("return this")());
+}).call(this)}).call(this,require('_process'),require("timers").setImmediate)
+},{"_process":7,"timers":8}],6:[function(require,module,exports){
 (function(root) {
   "use strict";
   var nextTick;
@@ -534,112 +628,7 @@ module.exports = require('./streamlet.js')
     });
   }
 })(Function("return this")());
-},{"subsequent":7}],7:[function(require,module,exports){
-module.exports = require('./subsequent.js')
-},{"./subsequent.js":8}],8:[function(require,module,exports){
-(function (process,setImmediate){(function (){
-(function(root) {
-  "use strict";
-  var nextTick = function(nextTick, buffer, length, tick) {
-    buffer = new Array(1e4);
-    length = 0;
-    function enqueue(fn) {
-      if (length === buffer.length) {
-        length = buffer.push(fn);
-      } else {
-        buffer[length++] = fn;
-      }
-      if (!tick) {
-        return tick = true;
-      }
-    }
-    function execute() {
-      var i = 0;
-      while (i < length) {
-        buffer[i]();
-        buffer[i++] = undefined;
-      }
-      length = 0;
-      tick = false;
-    }
-    if (typeof setImmediate === "function") {
-      return function(fn) {
-        enqueue(fn) && setImmediate(execute);
-      };
-    }
-    if (typeof process === "object" && process.nextTick) {
-      return function(fn) {
-        enqueue(fn) && process.nextTick(execute);
-      };
-    }
-    var MutationObserver = root.MutationObserver;
-    if (typeof MutationObserver !== "undefined") {
-      var val = 1, node = root.document.createTextNode("");
-      new MutationObserver(execute).observe(node, {
-        characterData: true
-      });
-      return function(fn) {
-        enqueue(fn) && (node.data = val *= -1);
-      };
-    }
-    if (root.postMessage) {
-      var isPostMessageAsync = true;
-      if (root.attachEvent) {
-        var checkAsync = function() {
-          isPostMessageAsync = false;
-        };
-        root.attachEvent("onmessage", checkAsync);
-        root.postMessage("__check", "*");
-        root.detachEvent("onmessage", checkAsync);
-      }
-      if (isPostMessageAsync) {
-        var message = "__subsequent", onMessage = function(e) {
-          if (e.data === message) {
-            e.stopPropagation && e.stopPropagation();
-            execute();
-          }
-        };
-        if (root.addEventListener) {
-          root.addEventListener("message", onMessage, true);
-        } else {
-          root.attachEvent("onmessage", onMessage);
-        }
-        return function(fn) {
-          enqueue(fn) && root.postMessage(message, "*");
-        };
-      }
-    }
-    var document = root.document;
-    if ("onreadystatechange" in document.createElement("script")) {
-      var createScript = function() {
-        var script = document.createElement("script");
-        script.onreadystatechange = function() {
-          script.parentNode.removeChild(script);
-          script = script.onreadystatechange = null;
-          execute();
-        };
-        (document.documentElement || document.body).appendChild(script);
-      };
-      return function(fn) {
-        enqueue(fn) && createScript();
-      };
-    }
-    return function(fn) {
-      enqueue(fn) && setTimeout(execute, 0);
-    };
-  }();
-  if (typeof define === "function" && define.amd) {
-    define(function() {
-      return nextTick;
-    });
-  } else if (typeof module === "object" && module.exports) {
-    module.exports = nextTick;
-  } else {
-    root.subsequent = nextTick;
-  }
-})(Function("return this")());
-}).call(this)}).call(this,require('_process'),require("timers").setImmediate)
-},{"_process":9,"timers":14}],9:[function(require,module,exports){
+},{"subsequent":4}],7:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -825,15 +814,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],10:[function(require,module,exports){
-arguments[4][5][0].apply(exports,arguments)
-},{"./streamlet.js":11,"dup":5}],11:[function(require,module,exports){
-arguments[4][6][0].apply(exports,arguments)
-},{"dup":6,"subsequent":12}],12:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"./subsequent.js":13,"dup":7}],13:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"_process":9,"dup":8,"timers":14}],14:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 (function (setImmediate,clearImmediate){(function (){
 var nextTick = require('process/browser.js').nextTick;
 var apply = Function.prototype.apply;
@@ -912,7 +893,7 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
   delete immediateIds[id];
 };
 }).call(this)}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":9,"timers":14}],15:[function(require,module,exports){
+},{"process/browser.js":7,"timers":8}],9:[function(require,module,exports){
 const Dialup = require('dialup/client')
 const Observable = require('streamlet')
 const Player = require('./player')
@@ -922,11 +903,7 @@ const $ = require('./bootstrap')
 let room
 
 if (location.pathname === '/') {
-	room = Array.apply(null, Array(20)).map(function (chars) {
-			return function () {
-				return chars.charAt(Math.floor(Math.random() * chars.length))
-			}
-		}('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')).join('')
+	room = fancyName()
 
 	history.pushState(null, '', room)
 	Observable.fromEvent(window, 'popstate').listen(function (e) {
@@ -937,45 +914,83 @@ if (location.pathname === '/') {
 }
 
 const dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room)
-let alone = false
 
-Observable.fromEvent($('#chat'), 'change')
+
+dialup.onPeers.listen(function (message) {
+	if (message.connections.length === 0) {
+		prompt('You are alone here, send this URL to your friends', location)
+	}
+
+	dialup.getUserStream(true, true).then(function (stream) {
+		const player = new Player(stream, {
+			local: true,
+			toggleScreenShare: function toggleScreenShare() {
+				if (toggleScreenShare.stream) {
+					const promise = toggleScreenShare.stream
+					toggleScreenShare.stream = null
+					return promise.then((stream) => {
+						dialup.stopStream(stream)
+						throw new Error('sharing disabled')
+					})
+				} else {
+					return toggleScreenShare.stream = dialup.getDisplayStream()
+				}
+			}
+		})
+
+		$('#faces').insertBefore(player, $('#faces').firstChild)
+	})
+})
+
+Observable.fromEvent($('#input'), 'change')
 	.filter(function (e) { return e.target.value })
 	.listen(function (e) {
 		dialup.broadcast(e.target.value)
 		var entry = document.createElement('li')
 		entry.innerHTML = e.target.value
-		$('#log').insertBefore(entry, $('#log').firstChild)
+		$('#log').appendChild(entry)
 		e.target.value = ''
 	})
 
-dialup.createStream(true, true).then(function (stream) {
-	const player = new Player(stream, {
-		muted: true
-	})
+dialup.onAdd.listen(function (message) {
+	const streamId = message.stream.id.replace('{', '').replace('}', '')
+	if (!$('[data-stream="' + streamId + '"]')) {
+		if (!$('[data-client="' + message.id + '"]')) {
+			const player = new Player(message.stream, {
+				props: {
+					'data-client': message.id,
+					'data-stream': streamId
+				}
+			})
+			drop(player).listen(function (data) {
+				dialup.send(message.id, data)
+			})
+			$('#faces').appendChild(player)
+		} else {
+			const player = new Player(message.stream, {
+				props: {
+					'data-client': message.id,
+					'data-stream': streamId
+				}
+			})
+			$('#screens').appendChild(player)
+		}
 
-	$('#conference').appendChild(player)
-
-	setTimeout(function(){
-		alone && prompt('You are alone here, send this URL to your friends', location)
-	}, 0)
-})
-
-dialup.onPeers.listen(function (message) {
-	if (message.connections.length === 0) {
-		alone = true
 	}
 })
 
-dialup.onAdd.listen(function (message) {
-	if (!document.querySelector('#remote' + message.id)) {
-		const player = new Player(message.stream, {
-			id: 'remote' + message.id
+dialup.onLeave.listen(function (message) {
+	const video = $('[data-client="' + message.id + '"]')
+	if (video.length > 0) {
+		video.forEach(v => {
+			URL.revokeObjectURL(v.src)
+			const player = v.parentNode
+			player.parentNode.removeChild(player)
 		})
-		drop(player).listen(function (data) {
-			dialup.send(message.id, data)
-		})
-		$('#conference').appendChild(player)
+	} else {
+		URL.revokeObjectURL(video.src)
+		const player = video.parentNode
+		player.parentNode.removeChild(player)
 	}
 })
 
@@ -996,16 +1011,7 @@ dialup.onData.filter(function (message) {
 	$('#log').insertBefore(entry, $('#log').firstChild)
 })
 
-dialup.onLeave.listen(function (message) {
-	const video = $('#remote' + message.id)
-	if (video) {
-		URL.revokeObjectURL(video.src)
-		const player = video.parentNode
-		player.parentNode.removeChild(player)
-	}
-})
-
-function fancyName () {
+function fancyName() {
 	const adjectives = [
 			"autumn", "hidden", "bitter", "misty", "silent", "empty", "dry", "dark",
 			"summer", "icy", "delicate", "quiet", "white", "cool", "spring", "winter",
@@ -1033,7 +1039,7 @@ function fancyName () {
 	return  adjectives[rnd >> 6 % 64] + '-' + nouns[rnd % 64] + '-' + rnd
 }
 
-},{"./bootstrap":16,"./drop":17,"./player":18,"dialup/client":1,"streamlet":10}],16:[function(require,module,exports){
+},{"./bootstrap":10,"./drop":11,"./player":12,"dialup/client":1,"streamlet":3}],10:[function(require,module,exports){
 module.exports = function $(selector, context) {
   const result = (context || document).querySelectorAll(selector)
   return result.length > 1 ? result : result[0]
@@ -1044,7 +1050,7 @@ NodeList.prototype.forEach = [].forEach
 
 NodeList.prototype.filter = [].filter
 
-},{}],17:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 const Observable = require('streamlet')
 
 module.exports = function (element) {
@@ -1081,40 +1087,34 @@ module.exports = function (element) {
 	return controller.stream
 }
 
-},{"streamlet":10}],18:[function(require,module,exports){
-if (document.getCSSCanvasContext) {
-	const ctx = document.getCSSCanvasContext('2d', 'noise', 300, 300)
-	const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
-	const pixels = imageData.data
-	for (let i = 0; i < pixels.length; i += 4) {
-		const color = Math.round(Math.random() * 255)
-		pixels[i] = pixels[i + 1] = pixels[i + 2] = color
-		pixels[i + 3] = 5
-	}
-	ctx.putImageData(imageData, 0, 0)
-}
-
+},{"streamlet":3}],12:[function(require,module,exports){
 const Observable = require('streamlet')
 
-function Player(stream, props) {
+function Player(stream, options) {
 	const player = document.createElement('div')
 	player.className = 'player'
-	player.appendChild(this.video(stream, props))
-	player.appendChild(this.controls(stream))
+	player.appendChild(this.video(stream, options))
+	player.appendChild(this.controls(stream, options))
 	return player
 }
 
-Player.prototype.video = function (stream, props) {
+Player.prototype.video = function (stream, options) {
 	const video = document.createElement('video')
 	video.autoplay = true
 	video.srcObject = stream
-	for (var i in props) {
-		video[i] = props[i]
+	if (options.local) {
+		video.muted = true
+	}
+
+	if (options.props) {
+		for (const prop in options.props) {
+			video.setAttribute(prop, options.props[prop])
+		}
 	}
 	return video
 }
 
-Player.prototype.controls = function (stream) {
+Player.prototype.controls = function (stream, options) {
 	const controls = document.createElement('div')
 	controls.className = 'controls'
 
@@ -1136,9 +1136,55 @@ Player.prototype.controls = function (stream) {
 	})
 	controls.appendChild(black)
 
+	if (options.local) {
+		const screen = document.createElement('button')
+		screen.textContent = 'S'
+		screen.classList.add('off')
+		Observable.fromEvent(screen, 'click').listen(function() {
+			options.toggleScreenShare().then(
+				() => screen.classList.remove('off'),
+				() => screen.classList.add('off')
+			)
+		})
+		controls.appendChild(screen)
+	}
+
 	return controls
 }
 
 module.exports = Player
 
-},{"streamlet":10}]},{},[15]);
+},{"streamlet":3}],13:[function(require,module,exports){
+module.exports = require('./overtone.js')
+
+},{"./overtone.js":14}],14:[function(require,module,exports){
+(function(global) {
+  "use strict";
+  if (typeof define === "function" && define.amd) {
+    define(function() {
+      return Audio;
+    });
+  } else if (typeof module === "object" && module.exports) {
+    module.exports = Audio;
+  } else {
+    global.Overtone = Audio;
+  }
+  function Audio() {}
+  Audio.filter = function(stream) {
+    if (AudioContext && MediaStream && MediaStream.prototype.removeTrack) {
+      var context = new AudioContext(), source = context.createMediaStreamSource(stream), filter = context.createBiquadFilter(), destination = context.createMediaStreamDestination();
+      filter.type = filter.LOWPASS;
+      filter.Q.value = 0;
+      filter.frequency.value = 2e3;
+      source.connect(filter);
+      filter.connect(destination);
+      stream.removeTrack(stream.getAudioTracks()[0]);
+      stream.addTrack(destination.stream.getAudioTracks()[0]);
+    }
+  };
+  if (typeof global !== "Window") {
+    global = window;
+  }
+  var AudioContext = global.AudioContext || global.mozAudioContext, MediaStream = global.MediaStream || global.webkitMediaStream || global.mozMediaStream;
+})(this);
+},{}]},{},[9]);
