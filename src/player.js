@@ -3,12 +3,12 @@ const Observable = require('streamlet')
 function Player(stream, options) {
 	const player = document.createElement('div')
 	player.className = 'player'
-	player.appendChild(this.video(stream, options))
-	player.appendChild(this.controls(stream, options))
+	player.appendChild(createVideo(stream, options))
+	player.appendChild(createControls(stream, options))
 	return player
 }
 
-Player.prototype.video = function (stream, options) {
+createVideo = function (stream, options) {
 	const video = document.createElement('video')
 	video.autoplay = true
 	video.srcObject = stream
@@ -21,30 +21,41 @@ Player.prototype.video = function (stream, options) {
 			video.setAttribute(prop, options.props[prop])
 		}
 	}
+
+	const videoTrack = stream.getVideoTracks()[0]
+	videoTrack.onended = function () {
+		const player = video.parentNode
+		player.parentNode.removeChild(player)
+		URL.revokeObjectURL(video.src)
+	}
 	return video
 }
 
-Player.prototype.controls = function (stream, options) {
+createControls = function (stream, options) {
 	const controls = document.createElement('div')
 	controls.className = 'controls'
 
-	const audio = stream.getAudioTracks()[0]
-	const mute = document.createElement('button')
-	mute.textContent = 'A'
-	Observable.fromEvent(mute, 'click').listen(function() {
-		audio.enabled = !audio.enabled
-		mute.classList.toggle('off')
-	})
-	controls.appendChild(mute)
+	const audioTrack = stream.getAudioTracks()[0]
+	if (audioTrack) {
+		const mute = document.createElement('button')
+		mute.textContent = 'A'
+		Observable.fromEvent(mute, 'click').listen(function() {
+			audioTrack.enabled = !audioTrack.enabled
+			mute.classList.toggle('off')
+		})
+		controls.appendChild(mute)
+	}
 
-	const video = stream.getVideoTracks()[0]
-	const black = document.createElement('button')
-	black.textContent = 'V'
-	Observable.fromEvent(black, 'click').listen(function() {
-		video.enabled = !video.enabled
-		black.classList.toggle('off')
-	})
-	controls.appendChild(black)
+	const videoTrack = stream.getVideoTracks()[0]
+	if (videoTrack) {
+		const mute = document.createElement('button')
+		mute.textContent = 'V'
+		Observable.fromEvent(mute, 'click').listen(function() {
+			videoTrack.enabled = !videoTrack.enabled
+			mute.classList.toggle('off')
+		})
+		controls.appendChild(mute)
+	}
 
 	if (options.local) {
 		const screen = document.createElement('button')

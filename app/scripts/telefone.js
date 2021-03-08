@@ -251,7 +251,7 @@ module.exports = require('./dialup');
     }
   }
 })(this);
-},{"overtone":13,"streamlet":3}],3:[function(require,module,exports){
+},{"overtone":14,"streamlet":3}],3:[function(require,module,exports){
 module.exports = require('./streamlet.js')
 },{"./streamlet.js":6}],4:[function(require,module,exports){
 module.exports = require('./subsequent.js')
@@ -894,6 +894,8 @@ exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate :
 };
 }).call(this)}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
 },{"process/browser.js":7,"timers":8}],9:[function(require,module,exports){
+require('./layout')
+
 const Dialup = require('dialup/client')
 const Observable = require('streamlet')
 const Player = require('./player')
@@ -922,18 +924,18 @@ dialup.onPeers.listen(function (message) {
 	}
 
 	dialup.getUserStream(true, true).then(function (stream) {
-		const player = new Player(stream, {
+		const player = Player(stream, {
 			local: true,
 			toggleScreenShare: function toggleScreenShare() {
-				if (toggleScreenShare.stream) {
-					const promise = toggleScreenShare.stream
-					toggleScreenShare.stream = null
+				if (toggleScreenShare.promise) {
+					const promise = toggleScreenShare.promise
+					toggleScreenShare.promise = null
 					return promise.then((stream) => {
 						dialup.stopStream(stream)
 						throw new Error('sharing disabled')
 					})
 				} else {
-					return toggleScreenShare.stream = dialup.getDisplayStream()
+					return toggleScreenShare.promise = dialup.getDisplayStream()
 				}
 			}
 		})
@@ -956,7 +958,7 @@ dialup.onAdd.listen(function (message) {
 	const streamId = message.stream.id.replace('{', '').replace('}', '')
 	if (!$('[data-stream="' + streamId + '"]')) {
 		if (!$('[data-client="' + message.id + '"]')) {
-			const player = new Player(message.stream, {
+			const player = Player(message.stream, {
 				props: {
 					'data-client': message.id,
 					'data-stream': streamId
@@ -967,13 +969,13 @@ dialup.onAdd.listen(function (message) {
 			})
 			$('#faces').appendChild(player)
 		} else {
-			const player = new Player(message.stream, {
+			const player = Player(message.stream, {
 				props: {
 					'data-client': message.id,
 					'data-stream': streamId
 				}
 			})
-			$('#screens').appendChild(player)
+			$('#screen').appendChild(player)
 		}
 
 	}
@@ -1039,7 +1041,7 @@ function fancyName() {
 	return  adjectives[rnd >> 6 % 64] + '-' + nouns[rnd % 64] + '-' + rnd
 }
 
-},{"./bootstrap":10,"./drop":11,"./player":12,"dialup/client":1,"streamlet":3}],10:[function(require,module,exports){
+},{"./bootstrap":10,"./drop":11,"./layout":12,"./player":13,"dialup/client":1,"streamlet":3}],10:[function(require,module,exports){
 module.exports = function $(selector, context) {
   const result = (context || document).querySelectorAll(selector)
   return result.length > 1 ? result : result[0]
@@ -1088,17 +1090,122 @@ module.exports = function (element) {
 }
 
 },{"streamlet":3}],12:[function(require,module,exports){
+const conference = document.querySelector("#conference")
+const faces = document.querySelector("#faces")
+const screen = document.querySelector("#screen")
+
+const screenObserver = new MutationObserver(function(mutations) {
+	mutations.forEach(function(mutation) {
+    if (mutation.addedNodes.length) {
+			conference.classList.add('presenting')
+		} else if (mutation.removedNodes.length) {
+			conference.classList.remove('presenting')
+		}
+  })
+})
+screenObserver.observe(screen, { childList: true })
+
+const facesObserver = new MutationObserver(function(mutations) {
+	mutations.forEach(function(mutation) {
+    if (mutation.addedNodes.length || mutation.removedNodes.length) {
+			autoLayout()
+		}
+  })
+})
+facesObserver.observe(faces, { childList: true })
+
+function autoLayout() {
+  const gallery = document.querySelector('#faces')
+	if (gallery.parentNode.classList.contains('presenting')) return
+	const container = gallery.parentNode
+  const aspectRatio = 4 / 3
+  const screenWidth = container.getBoundingClientRect().width
+  const screenHeight = container.getBoundingClientRect().height
+  const videoCount = gallery.querySelectorAll('video').length || 1
+
+  const { width, height, cols } = calculateConstraints(
+    screenWidth,
+    screenHeight,
+    videoCount,
+    aspectRatio
+  )
+
+  gallery.style.setProperty("--width", width + "px")
+  gallery.style.setProperty("--height", height + "px")
+  gallery.style.setProperty("--cols", cols + "")
+}
+
+function calculateConstraints(
+	containerWidth,
+	containerHeight,
+	videoCount,
+	aspectRatio,
+) {
+	let constraints = {
+		area: 0,
+		cols: 0,
+		rows: 0,
+		width: 0,
+		height: 0
+	}
+
+	for (let cols = 1; cols <= videoCount; cols++) {
+		const rows = Math.ceil(videoCount / cols)
+		const horizontalScale = containerWidth / (cols * aspectRatio)
+		const verticalScale = containerHeight / rows
+
+		let width
+		let height
+		if (horizontalScale <= verticalScale) {
+			width = Math.floor(containerWidth / cols)
+			height = Math.floor(width / aspectRatio)
+		} else {
+			height = Math.floor(containerHeight / rows)
+			width = Math.floor(height * aspectRatio)
+		}
+
+		const area = width * height
+		if (area > constraints.area) {
+			constraints = {
+				area,
+				width,
+				height,
+				rows,
+				cols
+			}
+		}
+	}
+
+	return constraints
+}
+
+function debounce(func, wait) {
+	let timeout
+	return function(...args) {
+		const context = this
+		const later = function() {
+			func.apply(context, args)
+		}
+		clearTimeout(timeout)
+		timeout = setTimeout(later, wait)
+	}
+}
+
+autoLayout()
+window.addEventListener('resize', debounce(autoLayout, 50))
+
+},{}],13:[function(require,module,exports){
 const Observable = require('streamlet')
 
 function Player(stream, options) {
 	const player = document.createElement('div')
 	player.className = 'player'
-	player.appendChild(this.video(stream, options))
-	player.appendChild(this.controls(stream, options))
+	player.appendChild(createVideo(stream, options))
+	player.appendChild(createControls(stream, options))
 	return player
 }
 
-Player.prototype.video = function (stream, options) {
+createVideo = function (stream, options) {
 	const video = document.createElement('video')
 	video.autoplay = true
 	video.srcObject = stream
@@ -1111,30 +1218,41 @@ Player.prototype.video = function (stream, options) {
 			video.setAttribute(prop, options.props[prop])
 		}
 	}
+
+	const videoTrack = stream.getVideoTracks()[0]
+	videoTrack.onended = function () {
+		const player = video.parentNode
+		player.parentNode.removeChild(player)
+		URL.revokeObjectURL(video.src)
+	}
 	return video
 }
 
-Player.prototype.controls = function (stream, options) {
+createControls = function (stream, options) {
 	const controls = document.createElement('div')
 	controls.className = 'controls'
 
-	const audio = stream.getAudioTracks()[0]
-	const mute = document.createElement('button')
-	mute.textContent = 'A'
-	Observable.fromEvent(mute, 'click').listen(function() {
-		audio.enabled = !audio.enabled
-		mute.classList.toggle('off')
-	})
-	controls.appendChild(mute)
+	const audioTrack = stream.getAudioTracks()[0]
+	if (audioTrack) {
+		const mute = document.createElement('button')
+		mute.textContent = 'A'
+		Observable.fromEvent(mute, 'click').listen(function() {
+			audioTrack.enabled = !audioTrack.enabled
+			mute.classList.toggle('off')
+		})
+		controls.appendChild(mute)
+	}
 
-	const video = stream.getVideoTracks()[0]
-	const black = document.createElement('button')
-	black.textContent = 'V'
-	Observable.fromEvent(black, 'click').listen(function() {
-		video.enabled = !video.enabled
-		black.classList.toggle('off')
-	})
-	controls.appendChild(black)
+	const videoTrack = stream.getVideoTracks()[0]
+	if (videoTrack) {
+		const mute = document.createElement('button')
+		mute.textContent = 'V'
+		Observable.fromEvent(mute, 'click').listen(function() {
+			videoTrack.enabled = !videoTrack.enabled
+			mute.classList.toggle('off')
+		})
+		controls.appendChild(mute)
+	}
 
 	if (options.local) {
 		const screen = document.createElement('button')
@@ -1154,10 +1272,10 @@ Player.prototype.controls = function (stream, options) {
 
 module.exports = Player
 
-},{"streamlet":3}],13:[function(require,module,exports){
+},{"streamlet":3}],14:[function(require,module,exports){
 module.exports = require('./overtone.js')
 
-},{"./overtone.js":14}],14:[function(require,module,exports){
+},{"./overtone.js":15}],15:[function(require,module,exports){
 (function(global) {
   "use strict";
   if (typeof define === "function" && define.amd) {

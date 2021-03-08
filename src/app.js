@@ -1,3 +1,5 @@
+require('./layout')
+
 const Dialup = require('dialup/client')
 const Observable = require('streamlet')
 const Player = require('./player')
@@ -26,7 +28,7 @@ dialup.onPeers.listen(function (message) {
 	}
 
 	dialup.getUserStream(true, true).then(function (stream) {
-		const player = new Player(stream, {
+		const player = Player(stream, {
 			local: true,
 			toggleScreenShare: function toggleScreenShare() {
 				if (toggleScreenShare.promise) {
@@ -60,7 +62,7 @@ dialup.onAdd.listen(function (message) {
 	const streamId = message.stream.id.replace('{', '').replace('}', '')
 	if (!$('[data-stream="' + streamId + '"]')) {
 		if (!$('[data-client="' + message.id + '"]')) {
-			const player = new Player(message.stream, {
+			const player = Player(message.stream, {
 				props: {
 					'data-client': message.id,
 					'data-stream': streamId
@@ -71,13 +73,13 @@ dialup.onAdd.listen(function (message) {
 			})
 			$('#faces').appendChild(player)
 		} else {
-			const player = new Player(message.stream, {
+			const player = Player(message.stream, {
 				props: {
 					'data-client': message.id,
 					'data-stream': streamId
 				}
 			})
-			$('#screens').appendChild(player)
+			$('#screen').appendChild(player)
 		}
 
 	}

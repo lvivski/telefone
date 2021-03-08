@@ -2,31 +2,28 @@
 	--background-color: #FEFEFE;
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+		--background-color: #14120d;
+	}
+}
+
 html {
-  height: 100%;
+  height: 100vh;
   font: 62.5%/1.5 Helvetica, Arial, sans-serif;
   background: var(--background-color);
 }
 
 body {
-	font-size: 1.5em;
 	margin: 0;
 	display: flex;
-	height: 100%;
+	height: 100vh;
 	flex-direction: column;
 	align-content: stretch;
 }
 
 input, li, button {
 	font-size: 1.5em;
-}
-
-video {
-	width: 100%;
-	vertical-align: bottom;
-	border: 1px solid rgba(0,0,0,.1);
-	border-top-color: rgba(0,0,0,.3);
-	border-bottom-color: rgba(255,255,255,.3);
 }
 
 ul {
@@ -38,6 +35,7 @@ ul {
 #app {
 	flex-direction: row;
 	align-content: stretch;
+	height: 100%;
 }
 
 #conference, #chat {
@@ -47,44 +45,49 @@ ul {
 #app, #conference, #chat {
 	display: flex;
 	flex: 1;
-	height: 100%;
+}
+
+#conference {
+	overflow: hidden;
+	align-items: center;
+  justify-content: center;
 }
 
 #chat {
 	width: 30%;
-	flex-grow: 0;
-	flex-shrink: 0;
+	flex: none;
 }
 
-#faces, #screens {
+#faces {
 	display: flex;
-	flex-direction: row;
 	flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(var(--width) * var(--cols));
 }
 
 #input {
-	margin: 10px;
+	margin: 5px;
 }
 
 #scroll {
 	display: flex;
 	flex: 1 1 auto;
 	overflow: scroll;
+	padding: 5px;
 	flex-direction: column-reverse;
+}
+
+video {
+	width: 100%;
+	height: 100%;
 }
 
 .player {
 	position: relative;
-	flex: 1 1 20%;
-	max-width: 50%;
+	width: var(--width);
+	height: var(--height);
+	padding: 5px;
 	box-sizing: border-box;
-	}
-	.player:nth-child(n+6) {
-		max-width: 20%;
-	}
-
-.player, #log {
-	padding: 10px;
 }
 
 .controls {
@@ -109,3 +112,48 @@ ul {
 			transform: skew(-25deg,-25deg);
 			-webkit-transform: skew(-25deg,-25deg);
 			}
+
+#conference.presenting {
+
+}
+#conference.presenting #faces {
+	flex: none;
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	}
+	#conference.presenting #faces .player {
+		width: auto;
+		height: auto
+	}
+
+	#conference.presenting #faces video {
+		height: 100px;
+		width: auto;
+		}
+
+		@media (min-height: 500px) {
+			#conference.presenting #faces video {
+				height: 150px;
+			}
+		}
+
+		@media (min-height: 1000px) {
+			#conference.presenting #faces video {
+				height: 200px;
+			}
+		}
+
+#screen {
+	flex: 1;
+	width: 100%;
+}
+#screen .player {
+	height: 100%;
+}
+#screen video {
+	position: absolute;
+	left: 0;
+	top: 0;
+	padding: 5px;
+	box-sizing: border-box;
+}
