@@ -1,0 +1,109 @@
+#app {
+	display: flex;
+	flex: 1;
+	flex-direction: row;
+	align-content: stretch;
+	height: 100%;
+}
+
+#conference {
+	display: flex;
+	position: relative;
+	flex: 1;
+	flex-direction: column;
+	overflow: hidden;
+	align-items: center;
+  	justify-content: center;
+}
+
+#cameras {
+	display: flex;
+	flex-wrap: wrap;
+  	justify-content: center;
+  	max-width: calc(var(--width) * var(--cols));
+}
+
+.player {
+	position: relative;
+	width: var(--width);
+	height: var(--height);
+	padding: 5px;
+	box-sizing: border-box;
+	background-color: var(--player-bg-color);
+}
+
+#conference.presenting #cameras {
+	flex: none;
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	}
+	#conference.presenting #cameras .player {
+		width: auto;
+		height: auto
+	}
+
+	#conference.presenting #cameras video {
+		height: 100px;
+		width: auto;
+		}
+
+		@media (min-height: 500px) {
+			#conference.presenting #cameras video {
+				height: 150px;
+			}
+		}
+
+		@media (min-height: 1000px) {
+			#conference.presenting #cameras video {
+				height: 200px;
+			}
+		}
+
+#screen {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	width: 100%;
+}
+
+#screen:empty {
+	flex: none
+}
+
+#screen .player {
+	height: 100%;
+}
+
+#screen video {
+	position: absolute;
+	left: 0;
+	top: 0;
+	padding: 5px;
+	box-sizing: border-box;
+}
+
+#chat {
+	display: flex;
+	flex-direction: column;
+	padding: 5px;
+	box-sizing: border-box;
+	width: 30%;
+	box-shadow: 10px 0 10px -15px inset;
+	background-color: var(--chat-bg-color);
+}
+
+#input {
+	margin: 5px;
+	padding: 5px 10px;
+	margin-bottom: 10px;
+	border-radius: 5px;
+	border: 1px solid var(--border-color)
+}
+
+#scroll {
+	display: flex;
+	flex: 1 1 auto;
+	overflow: scroll;
+	padding: 5px;
+	flex-direction: column-reverse;
+}

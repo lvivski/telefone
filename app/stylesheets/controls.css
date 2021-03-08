@@ -1,0 +1,95 @@
+#controls {
+	position: absolute;
+	display: inline-block;
+	bottom: 0;
+	left: 50%;
+	margin-bottom: 15px;
+	transform: translateX(-50%);
+	display: flex;
+	border-radius: var(--border-radius);
+	box-shadow: 0 0 10px -5px;
+}
+
+#controls > span {
+	appearance: none;
+	display: inline-block;
+	font-size: 2.2em;
+	width: 2.2em;
+	height: 2.2em;
+	display: flex;
+}
+
+#controls > span:nth-child(n+2) {
+	margin-left: -1px
+}
+
+#controls > span label {
+	background: linear-gradient(var(--button-bg-color-top), var(--button-bg-color-bottom));
+	border: 1px solid var(--border-color);
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+#controls > span:first-child label {
+	border-radius: var(--border-radius) 0 0 var(--border-radius);
+}
+
+#controls > span:last-child label {
+	border-radius: 0 var(--border-radius) var(--border-radius) 0;
+}
+
+#controls > span input[type=checkbox] {
+	display: none
+}
+
+#controls :not(:checked) ~ label {
+	color: var(--button-color-off);
+	text-shadow: 0 1px 0 white, 0 -1px 0 var(--color-gray);
+}
+
+#controls :checked ~ label {
+	color: var(--button-color-on);
+	text-shadow: 0 -1px 0 white, 0 1px 0 var(--button-shadow-color-on);
+	background: linear-gradient(to top, var(--button-bg-color-top), var(--button-bg-color-bottom));
+}
+
+#controls :disabled ~ label {
+	color: var(--color-gray-alt);
+	text-shadow: none;
+}
+
+#mic_input:checked ~ label,
+#camera_input:checked ~ label {
+	color: var(--button-color-on-alt);
+	text-shadow: 0 -1px 0 white, 0 1px 0 var(--button-shadow-color-on-alt);
+}
+
+#mic_input:checked ~ label:before {
+	content: "\e908";
+}
+#mic_input:not(:checked) ~ label:before {
+	content: "\e907";
+}
+
+#camera_input:checked ~ label:before {
+	content: "\e90a";
+}
+#camera_input:not(:checked) ~ label:before {
+	content: "\e909";
+}
+
+#screen_input:checked ~ label:before {
+	content: "\e905";
+}
+#screen_input:not(:checked) ~ label:before {
+	content: "\e906";
+}
+
+#chat_input:checked ~ label:before {
+	content: "\e903";
+}
+#chat_input:not(:checked) ~ label:before {
+	content: "\e903";
+}

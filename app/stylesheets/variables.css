@@ -1,0 +1,22 @@
+:root {
+	--background-color: #fffdf6;
+	--player-bg-color: #52514c;
+	--chat-bg-color: #f8f7f0;
+	--button-bg-color-top: #f5f1e7;
+	--button-bg-color-bottom: #e6e1d6;
+	--button-color-off: #817d75;
+	--button-color-on: #23c00f;
+	--button-shadow-color-on: #26a116;
+	--button-color-on-alt: #d82b1e;
+	--button-shadow-color-on-alt: #96271f;
+	--border-color: #c7c5ba;
+	--border-radius: 10px;
+	--color-gray: #615f59;
+	--color-gray-alt: #c0bcb1;
+}
+
+@media (prefers-color-scheme: none) {
+	:root {
+		--background-color: #14120d;
+	}
+}

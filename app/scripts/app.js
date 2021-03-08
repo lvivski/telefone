@@ -1,10 +1,10 @@
-require('./layout')
+import './layout.js'
 
-const Dialup = require('dialup/client')
-const Observable = require('streamlet')
-const Player = require('./player')
-const drop = require('./drop')
-const $ = require('./bootstrap')
+import { Dialup } from './vendor.js'
+import Player from './player.js'
+import Controls from './controls.js'
+import drop from './drop.js'
+import { $, $$ } from './select.js'
 
 let room
 
@@ -12,15 +12,14 @@ if (location.pathname === '/') {
 	room = fancyName()
 
 	history.pushState(null, '', room)
-	Observable.fromEvent(window, 'popstate').listen(function (e) {
+	window.onpopstate = function (e) {
 		location = location
-	})
+	}
 } else {
 	room = location.pathname.slice(1)
 }
 
 const dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room)
-
 
 dialup.onPeers.listen(function (message) {
 	if (message.connections.length === 0) {
@@ -28,6 +27,7 @@ dialup.onPeers.listen(function (message) {
 	}
 
 	dialup.getUserStream(true, true).then(function (stream) {
+		$('#conference').appendChild(Controls(stream))
 		const player = Player(stream, {
 			local: true,
 			toggleScreenShare: function toggleScreenShare() {
@@ -44,19 +44,18 @@ dialup.onPeers.listen(function (message) {
 			}
 		})
 
-		$('#faces').insertBefore(player, $('#faces').firstChild)
+		$('#cameras').insertBefore(player, $('#cameras').firstChild)
 	})
 })
 
-Observable.fromEvent($('#input'), 'change')
-	.filter(function (e) { return e.target.value })
-	.listen(function (e) {
-		dialup.broadcast(e.target.value)
-		var entry = document.createElement('li')
-		entry.innerHTML = e.target.value
-		$('#log').appendChild(entry)
-		e.target.value = ''
-	})
+$('#input').onchange = function (e) {
+	if (!e.target.value) return
+	dialup.broadcast(e.target.value)
+	var entry = document.createElement('li')
+	entry.innerHTML = e.target.value
+	$('#log').appendChild(entry)
+	e.target.value = ''
+}
 
 dialup.onAdd.listen(function (message) {
 	const streamId = message.stream.id.replace('{', '').replace('}', '')
@@ -71,7 +70,7 @@ dialup.onAdd.listen(function (message) {
 			drop(player).listen(function (data) {
 				dialup.send(message.id, data)
 			})
-			$('#faces').appendChild(player)
+			$('#cameras').appendChild(player)
 		} else {
 			const player = Player(message.stream, {
 				props: {
@@ -86,18 +85,11 @@ dialup.onAdd.listen(function (message) {
 })
 
 dialup.onLeave.listen(function (message) {
-	const video = $('[data-client="' + message.id + '"]')
-	if (video.length > 0) {
-		video.forEach(v => {
-			URL.revokeObjectURL(v.src)
-			const player = v.parentNode
-			player.parentNode.removeChild(player)
-		})
-	} else {
+	$$('[data-client="' + message.id + '"]').forEach(video => {
 		URL.revokeObjectURL(video.src)
 		const player = video.parentNode
 		player.parentNode.removeChild(player)
-	}
+	})
 })
 
 dialup.onData.filter(function (message) {

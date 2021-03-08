@@ -1,6 +1,8 @@
-const conference = document.querySelector("#conference")
-const faces = document.querySelector("#faces")
-const screen = document.querySelector("#screen")
+import { $, $$ } from './select.js'
+
+const conference = $("#conference")
+const cameras = $("#cameras")
+const screen = $("#screen")
 
 const screenObserver = new MutationObserver(function(mutations) {
 	mutations.forEach(function(mutation) {
@@ -13,27 +15,26 @@ const screenObserver = new MutationObserver(function(mutations) {
 })
 screenObserver.observe(screen, { childList: true })
 
-const facesObserver = new MutationObserver(function(mutations) {
+const camerasObserver = new MutationObserver(function(mutations) {
 	mutations.forEach(function(mutation) {
     if (mutation.addedNodes.length || mutation.removedNodes.length) {
 			autoLayout()
 		}
   })
 })
-facesObserver.observe(faces, { childList: true })
+camerasObserver.observe(cameras, { childList: true })
 
 function autoLayout() {
-  const gallery = document.querySelector('#faces')
+  const gallery = $('#cameras')
 	if (gallery.parentNode.classList.contains('presenting')) return
 	const container = gallery.parentNode
   const aspectRatio = 4 / 3
-  const screenWidth = container.getBoundingClientRect().width
-  const screenHeight = container.getBoundingClientRect().height
-  const videoCount = gallery.querySelectorAll('video').length || 1
+  const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect()
+  const videoCount = $$('video', gallery).length || 1
 
   const { width, height, cols } = calculateConstraints(
-    screenWidth,
-    screenHeight,
+    containerWidth,
+    containerHeight,
     videoCount,
     aspectRatio
   )

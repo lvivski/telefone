@@ -6,7 +6,7 @@
   "scripts": {
     "prestart": "npm run build",
     "start": "node server.js",
-    "build": "browserify src/app.js -o app/scripts/telefone.js"
+    "build": "npx rollup -c"
   },
   "dependencies": {
     "compression": "*",
@@ -16,7 +16,9 @@
     "streamlet": "*"
   },
   "devDependencies": {
-    "browserify": "*"
+    "@rollup/plugin-commonjs": "*",
+    "@rollup/plugin-node-resolve": "*",
+    "rollup": "*"
   },
   "license": "MIT",
   "private": true
