@@ -27,21 +27,9 @@ dialup.onPeers.listen(function (message) {
 	}
 
 	dialup.getUserStream(true, true).then(function (stream) {
-		$('#conference').appendChild(Controls(stream))
+		$('#conference').appendChild(Controls(stream, dialup))
 		const player = Player(stream, {
-			local: true,
-			toggleScreenShare: function toggleScreenShare() {
-				if (toggleScreenShare.promise) {
-					const promise = toggleScreenShare.promise
-					toggleScreenShare.promise = null
-					return promise.then((stream) => {
-						dialup.stopStream(stream)
-						throw new Error('sharing disabled')
-					})
-				} else {
-					return toggleScreenShare.promise = dialup.getDisplayStream()
-				}
-			}
+			local: true
 		})
 
 		$('#cameras').insertBefore(player, $('#cameras').firstChild)

@@ -29,7 +29,7 @@
 	height: var(--height);
 	padding: 5px;
 	box-sizing: border-box;
-	background-color: var(--player-bg-color);
+	/* background-color: var(--player-bg-color); */
 }
 
 #conference.presenting #cameras {

@@ -21,9 +21,9 @@ function createVideo(stream, options) {
 
 	const videoTrack = stream.getVideoTracks()[0]
 	videoTrack.onended = function () {
+		URL.revokeObjectURL(video.src)
 		const player = video.parentNode
 		player.parentNode.removeChild(player)
-		URL.revokeObjectURL(video.src)
 	}
 	return video
 }
