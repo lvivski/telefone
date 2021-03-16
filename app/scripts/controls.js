@@ -38,7 +38,10 @@ function createScreenShareControl(dialup) {
 	return createControl('screen', false, function () {
 		toggle(dialup).then(
 			() => this.checked = true,
-			() => this.checked = false,
+			(e) => {
+				console.log(e)
+				this.checked = false
+			},
 		)
 	})
 }
