@@ -39,7 +39,7 @@ function createScreenShareControl(dialup) {
 		toggle(dialup).then(
 			() => this.checked = true,
 			(e) => {
-				console.log(e)
+				console.error(e)
 				this.checked = false
 			},
 		)
