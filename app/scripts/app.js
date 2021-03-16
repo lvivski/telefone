@@ -86,12 +86,12 @@ dialup.ondata = function ({data: {data}}) {
 	if (typeof data === 'string') {
 		const entry = document.createElement('li')
 		entry.innerHTML = '<b>' + data + '</b>'
-		$('#log').insertBefore(entry, $('#log').firstChild)
+		$('#log').appendChild(entry)
 	} else {
 		const entry = document.createElement('li')``
 		const url = URL.createObjectURL(new Blob([data]))
 		entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
-		$('#log').insertBefore(entry, $('#log').firstChild)
+		$('#log').appendChild(entry)
 	}
 }
 
