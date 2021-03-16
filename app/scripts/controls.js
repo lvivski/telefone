@@ -1,3 +1,5 @@
+import Settings from './settings.js'
+
 function Controls(stream, dialup) {
 	const controls = document.createElement('div')
 	controls.id = 'controls'
@@ -5,6 +7,7 @@ function Controls(stream, dialup) {
 	controls.appendChild(createTrackControl('mic', stream.getAudioTracks()[0]))
 	controls.appendChild(createTrackControl('camera', stream.getVideoTracks()[0]))
 	controls.appendChild(createScreenShareControl(dialup))
+	// controls.appendChild(createSettingsControl(new Settings(dialup)))
 	controls.appendChild(createControl('chat', false))
 
 	return controls
@@ -14,11 +17,18 @@ function createTrackControl(id, track) {
 	return createControl(id, track.enabled, () => track.enabled = !track.enabled)
 }
 
+function createSettingsControl(settings) {
+	const fragment = document.createDocumentFragment()
+	fragment.appendChild(settings)
+	fragment.appendChild(createControl('settings', false, () => {}))
+	return fragment
+}
+
 async function toggle(dialup) {
 	if (toggle.stream) {
 		const stream = toggle.stream
 		toggle.stream = null
-		dialup.stopStream(stream)
+		dialup.removeStream(stream)
 		throw new Error('sharing disabled')
 	}
 	return toggle.stream = await dialup.getDisplayStream()

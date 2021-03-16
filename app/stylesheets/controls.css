@@ -87,9 +87,17 @@
 	content: "\e906";
 }
 
-#chat_input:checked ~ label:before {
+#chat_input ~ label:before {
 	content: "\e903";
 }
-#chat_input:not(:checked) ~ label:before {
-	content: "\e903";
+
+#settings_input ~ label:before {
+	content: "\e902";
+}
+
+#settings {
+	position: absolute;
+	display: flex;
+	z-index: -1;
+	box-shadow: 0 0 10px -5px;
 }

@@ -21,20 +21,22 @@ if (location.pathname === '/') {
 
 const dialup = new Dialup(location.origin.replace(/^http/, 'ws'), room)
 
-dialup.onPeers.listen(function (message) {
-	if (message.connections.length === 0) {
+dialup.onpeers = function ({data: {connections}}) {
+	if (connections.length === 0) {
 		prompt('You are alone here, send this URL to your friends', location)
 	}
 
 	dialup.getUserStream(true, true).then(function (stream) {
-		$('#conference').appendChild(Controls(stream, dialup))
-		const player = Player(stream, {
+		const controls = new Controls(stream, dialup)
+		$('#conference').appendChild(controls)
+
+		const player = new Player(stream, {
 			local: true
 		})
 
 		$('#cameras').insertBefore(player, $('#cameras').firstChild)
 	})
-})
+}
 
 $('#input').onchange = function (e) {
 	if (!e.target.value) return
@@ -45,24 +47,24 @@ $('#input').onchange = function (e) {
 	e.target.value = ''
 }
 
-dialup.onAdd.listen(function (message) {
-	const streamId = message.stream.id.replace('{', '').replace('}', '')
+dialup.onadd = function ({data: {id, stream}}) {
+	const streamId = stream.id.replace('{', '').replace('}', '')
 	if (!$('[data-stream="' + streamId + '"]')) {
-		if (!$('[data-client="' + message.id + '"]')) {
-			const player = Player(message.stream, {
+		if (!$('[data-client="' + id + '"]')) {
+			const player = new Player(stream, {
 				props: {
-					'data-client': message.id,
+					'data-client': id,
 					'data-stream': streamId
 				}
 			})
 			drop(player).listen(function (data) {
-				dialup.send(message.id, data)
+				dialup.send(id, data)
 			})
 			$('#cameras').appendChild(player)
 		} else {
-			const player = Player(message.stream, {
+			const player = new Player(stream, {
 				props: {
-					'data-client': message.id,
+					'data-client': id,
 					'data-stream': streamId
 				}
 			})
@@ -70,32 +72,28 @@ dialup.onAdd.listen(function (message) {
 		}
 
 	}
-})
+}
 
-dialup.onLeave.listen(function (message) {
-	$$('[data-client="' + message.id + '"]').forEach(video => {
+dialup.onleave = function ({data: {id}}) {
+	$$('[data-client="' + id + '"]').forEach(video => {
 		URL.revokeObjectURL(video.src)
 		const player = video.parentNode
 		player.parentNode.removeChild(player)
 	})
-})
+}
 
-dialup.onData.filter(function (message) {
-	return typeof message.data === 'string'
-}).listen(function (message) {
-	const entry = document.createElement('li')
-	entry.innerHTML = '<b>' + message.data + '</b>'
-	$('#log').insertBefore(entry, $('#log').firstChild)
-})
-
-dialup.onData.filter(function (message) {
-	return typeof message.data !== 'string'
-}).listen(function (message) {
-	const entry = document.createElement('li')
-	const url = URL.createObjectURL(new Blob([message.data]))
-	entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
-	$('#log').insertBefore(entry, $('#log').firstChild)
-})
+dialup.ondata = function ({data: {data}}) {
+	if (typeof data === 'string') {
+		const entry = document.createElement('li')
+		entry.innerHTML = '<b>' + data + '</b>'
+		$('#log').insertBefore(entry, $('#log').firstChild)
+	} else {
+		const entry = document.createElement('li')``
+		const url = URL.createObjectURL(new Blob([data]))
+		entry.innerHTML = '<a href="' + url + '" target="_blank">Download File</a>'
+		$('#log').insertBefore(entry, $('#log').firstChild)
+	}
+}
 
 function fancyName() {
 	const adjectives = [
