@@ -24,6 +24,10 @@ const camerasObserver = new MutationObserver(function(mutations) {
 })
 camerasObserver.observe(cameras, { childList: true })
 
+
+const resizeObserver = new ResizeObserver(() => debounce(autoLayout, 50))
+resizeObserver.observe(conference)
+
 function autoLayout() {
   const gallery = $('#cameras')
 	if (gallery.parentNode.classList.contains('presenting')) return
@@ -41,7 +45,7 @@ function autoLayout() {
 
   gallery.style.setProperty("--width", width + "px")
   gallery.style.setProperty("--height", height + "px")
-  gallery.style.setProperty("--cols", cols + "")
+  gallery.style.setProperty("--cols", cols)
 }
 
 function calculateConstraints(
@@ -99,6 +103,3 @@ function debounce(func, wait) {
 		timeout = setTimeout(later, wait)
 	}
 }
-
-autoLayout()
-window.addEventListener('resize', debounce(autoLayout, 50))
